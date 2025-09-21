@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FCPO 5-Min Intraday Analysis Checklist (SVP 2.1)</title>
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --primary-hover: #0b5ed7;
+            --header-text-color: #28a745; /* Green for headers */
+            --background-color: #121212;
+            --form-background: #1e1e1e;
+            --header-bg: #2a2a2a;
+            --border-color: #444;
+            --text-color: #e0e0e0;
+            --label-color: #b0b0b0;
+            --success-color: #198754; /* Green for ticks */
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: var(--form-background);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+            color: white;
+            padding: 20px 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.8em;
+            color: var(--header-text-color);
+        }
+
+        header p {
+            margin: 5px 0 0;
+            color: var(--label-color);
+        }
+
+        form {
+            padding: 30px;
+        }
+
+        fieldset {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        legend {
+            font-size: 1.4em;
+            font-weight: 600;
+            padding: 0 10px;
+            color: var(--primary-color);
+        }
+
+        .grid-container {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .metadata-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label, .label {
+            font-weight: 600;
+            color: var(--label-color);
+            margin-bottom: 8px;
+        }
+        
+        input[type="text"], input[type="date"], input[type="time"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: #2a2a2a;
+            color: var(--text-color);
+            /* Font normalization */
+            font-family: inherit;
+            font-size: 1em;
+        }
+        
+        .radio-group, .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 4px;
+        }
+        
+        .radio-group-horizontal {
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .radio-group label, .checkbox-group label {
+            display: flex;
+            align-items: center;
+            font-weight: normal;
+            color: var(--text-color);
+            gap: 8px;
+            margin: 0;
+        }
+        
+        input[type="radio"], input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--success-color); /* Green tick color */
+            flex-shrink: 0;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        thead th {
+            background-color: var(--header-bg);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            color: var(--header-text-color); /* Green for column headers */
+        }
+        
+        .notes {
+            font-style: italic;
+            color: var(--label-color);
+            font-size: 0.9em;
+            max-width: 400px;
+        }
+
+        .principle-section h4 {
+            border-bottom: 2px solid var(--header-bg);
+            padding-bottom: 8px;
+            margin-top: 25px;
+        }
+
+        .go-nogo label {
+            font-weight: 600;
+        }
+        
+        .go { color: var(--success-color); }
+        .no-go { color: var(--danger-color); }
+        
+        .strategy-name {
+            font-weight: 600;
+            min-width: 200px;
+        }
+        
+        .pending-note {
+            font-size: 0.8em;
+            font-style: italic;
+            color: var(--warning-color);
+        }
+        
+        .disqualification-item {
+            margin-bottom: 15px;
+        }
+        .disqualification-item strong {
+            color: var(--text-color);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .form-actions {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        button[type="submit"] {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button[type="submit"]:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        /* Responsive Styles for PC and large tablets */
+        @media (min-width: 768px) {
+            .metadata-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .execution-plan-grid {
+                 grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .metadata-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+             .execution-plan-grid {
+                 grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>FCPO Intraday Analysis Checklist</h1>
+        <p>Based on Context-Driven SVP Playbook 2.1</p>
+    </header>
+
+    <form id="analysis-form">
+        <fieldset>
+            <legend>1. Chart Metadata</legend>
+            <div class="grid-container metadata-grid">
+                <div class="input-group">
+                    <label for="chart-title">Chart Title</label>
+                    <input type="text" id="chart-title" name="chart-title" placeholder="e.g., FCPO DEC 24">
+                </div>
+                <div class="input-group">
+                    <label for="chart-date">Chart Date</label>
+                    <input type="date" id="chart-date" name="chart-date">
+                </div>
+                <div class="input-group">
+                    <label for="chart-time">Chart Time (HHMM)</label>
+                    <input type="text" id="chart-time" name="chart-time" placeholder="e.g., 1130 or 1400">
+                </div>
+                <div class="input-group">
+                    <label>Session</label>
+                    <div class="radio-group radio-group-horizontal">
+                        <label><input type="radio" name="session" value="Morning"> Morning</label>
+                        <label><input type="radio" name="session" value="Afternoon"> Afternoon</label>
+                    </div>
+                </div>
+                 <div class="input-group">
+                    <label>SVP Source</label>
+                    <div class="radio-group radio-group-horizontal">
+                        <label><input type="radio" name="svp-source" value="Prior"> Prior Session</label>
+                        <label><input type="radio" name="svp-source" value="Current"> Current Session</label>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Market State</label>
+                    <div class="radio-group radio-group-horizontal">
+                        <label><input type="radio" name="market-state" value="Balanced"> Balanced (Range)</label>
+                        <label><input type="radio" name="market-state" value="Unbalanced"> Unbalanced (Trend)</label>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Directional Bias</label>
+                    <div class="radio-group radio-group-horizontal">
+                        <label><input type="radio" name="directional-bias" value="Bullish"> Bullish</label>
+                        <label><input type="radio" name="directional-bias" value="Bearish"> Bearish</label>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Active Principle Group</label>
+                    <div class="radio-group radio-group-horizontal">
+                        <label><input type="radio" name="principle-group" value="Range"> Range</label>
+                        <label><input type="radio" name="principle-group" value="Continuation"> Continuation</label>
+                        <label><input type="radio" name="principle-group" value="Reversal"> Reversal</label>
+                        <label><input type="radio" name="principle-group" value="Failed Reversal"> Failed Reversal</label>
+                        <label><input type="radio" name="principle-group" value="VPOC Migration"> VPOC Migration</label>
+                        <label><input type="radio" name="principle-group" value="Other"> Other Strategies</label>
+                    </div>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>🛠 Execution Framework</legend>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Step</th>
+                            <th>Action / Notes</th>
+                            <th>Done?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1. Identify Market State</td>
+                            <td class="notes">Balanced (≥4 turns) → Range Principle. Unbalanced → Continuation Principle.</td>
+                            <td><input type="checkbox" name="exec-step-1"></td>
+                        </tr>
+                        <tr>
+                            <td>2. Set Directional Bias</td>
+                            <td class="notes">Check prior SVP, open vs VAH/VAL, POC shift, VWAP.</td>
+                            <td><input type="checkbox" name="exec-step-2"></td>
+                        </tr>
+                        <tr>
+                            <td>3. Mark Trading Zones</td>
+                            <td class="notes">Draw VAH, VAL, POC, HVNs, LVNs from the chosen session profile.</td>
+                            <td><input type="checkbox" name="exec-step-3"></td>
+                        </tr>
+                        <tr>
+                            <td>4. Apply Matching Strategy</td>
+                            <td class="notes">Filter to the Principle section matching the market state & directional bias.</td>
+                            <td><input type="checkbox" name="exec-step-4"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </fieldset>
+        
+        <fieldset class="principle-section">
+            <legend>🎯 Strategy Review</legend>
+
+            <h4>Principles</h4>
+            <div class="table-wrapper">
+                <table data-principle="Range">
+                    <thead><tr><th>Strategy</th><th>Confluence Checklist</th><th>Go / No-Go</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="strategy-name">VA Fade</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> RSI divergence.</label><label><input type="checkbox"> VWAP stretched far.</label><label><input type="checkbox"> Low breakout volume.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="VA Fade"><label class="go"><input type="radio" name="va-fade-go" value="go"> Go</label><label class="no-go"><input type="radio" name="va-fade-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                        <tr>
+                            <td class="strategy-name">POC Reversion (Rotation)</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> VWAP near POC.</label><label><input type="checkbox"> RSI extreme (<30 long / >70 short).</label><label><input type="checkbox"> Volume spike on rejection.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="POC Reversion (Rotation)"><label class="go"><input type="radio" name="poc-rev-go" value="go"> Go</label><label class="no-go"><input type="radio" name="poc-rev-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <table data-principle="Continuation">
+                     <thead><tr><th>Strategy</th><th>Confluence Checklist</th><th>Go / No-Go</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="strategy-name">HVN Retracement</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> HVN ≈ VWAP.</label><label><input type="checkbox"> RSI bias intact (holds 50).</label><label><input type="checkbox"> Volume surge on bounce.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="HVN Retracement"><label class="go"><input type="radio" name="hvn-ret-go" value="go"> Go</label><label class="no-go"><input type="radio" name="hvn-ret-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                        <tr>
+                            <td class="strategy-name">LVN Breakout</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> RSI aligned with breakout.</label><label><input type="checkbox"> Volume expansion.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="LVN Breakout"><label class="go"><input type="radio" name="lvn-brk-go" value="go"> Go</label><label class="no-go"><input type="radio" name="lvn-brk-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                    </tbody>
+                </table>
+                 <table data-principle="Reversal">
+                     <thead><tr><th>Strategy</th><th>Confluence Checklist</th><th>Go / No-Go</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="strategy-name">POC Reversion (Countertrend)</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> VWAP near POC.</label><label><input type="checkbox"> Rejection candle confirmation.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="POC Reversion (Countertrend)"><label class="go"><input type="radio" name="poc-counter-go" value="go"> Go</label><label class="no-go"><input type="radio" name="poc-counter-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h4>Other Strategies</h4>
+             <div class="table-wrapper">
+                <table data-principle="Other">
+                     <thead><tr><th>Strategy</th><th>Confluence Checklist</th><th>Go / No-Go</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td class="strategy-name">14:30 VSR</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> Spike ≥200% of 10-bar MA.</label><label><input type="checkbox"> Price crosses VWAP on spike.</label><label><input type="checkbox"> VAH/VAL or LVN reaction.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="14:30 VSR"><label class="go"><input type="radio" name="vsr-go" value="go"> Go</label><label class="no-go"><input type="radio" name="vsr-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                        <tr>
+                            <td class="strategy-name">80% Rule</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> Re-enters prior VA ≥0.03 pts.</label><label><input type="checkbox"> VWAP cross.</label><label><input type="checkbox"> RSI 50 cross.</label><label><input type="checkbox"> Rising volume.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="80% Rule"><label class="go"><input type="radio" name="80-rule-go" value="go"> Go</label><label class="no-go"><input type="radio" name="80-rule-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                         <tr>
+                            <td class="strategy-name">VWAP Morning Retest</td>
+                            <td><div class="checkbox-group"><label><input type="checkbox"> Retest in AM window.</label><label><input type="checkbox"> Retest candle rejects VWAP.</label><label><input type="checkbox"> RSI aligned with bias.</label></div></td>
+                            <td><div class="radio-group go-nogo radio-group-horizontal" data-strategy-name="VWAP Morning Retest"><label class="go"><input type="radio" name="vwap-morn-go" value="go"> Go</label><label class="no-go"><input type="radio" name="vwap-morn-go" value="no-go"> No-Go</label></div></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Disqualification — Final Check</legend>
+            <div class="disqualification-item">
+                <strong>For VA Fade:</strong>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="dq-va-fade"> Breakout has strong volume AND VWAP is aligned with the breakout.</label>
+                </div>
+            </div>
+            <div class="disqualification-item">
+                <strong>For HVN Retracement:</strong>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="dq-hvn"> Primary trend breaks (e.g., VWAP flips against your side).</label>
+                </div>
+            </div>
+             <div class="disqualification-item">
+                <strong>For POC Reversion:</strong>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="dq-poc"> Price slices through POC on high volume with no reaction.</label>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>✅ Execution Plan</legend>
+            <div class="grid-container execution-plan-grid">
+                <div class="input-group">
+                    <label>Strategy</label>
+                    <div id="strategy-options-container" class="checkbox-group">
+                        <span class="notes">Select an "Active Principle Group" above to see strategies.</span>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Direction</label>
+                    <div class="radio-group radio-group-horizontal">
+                        <label><input type="radio" name="commit-direction" value="Long"> Long (Buy)</label>
+                        <label><input type="radio" name="commit-direction" value="Short"> Short (Sell)</label>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="entry-price">Entry Price</label>
+                    <input type="text" id="entry-price" name="entry-price" placeholder="e.g., 4002">
+                </div>
+                <div class="input-group">
+                    <label for="stop-loss">Stop Loss</label>
+                    <input type="text" id="stop-loss" name="stop-loss" placeholder="e.g., 3992">
+                </div>
+                <div class="input-group">
+                    <label for="tp1">Take Profit 1 (TP1)</label>
+                    <input type="text" id="tp1" name="tp1" placeholder="e.g., 4012">
+                </div>
+                 <div class="input-group">
+                    <label for="risk-protocol">Notes / Risk Protocol</label>
+                    <input type="text" id="risk-protocol" name="risk-protocol" placeholder="e.g., Trail SL after TP1">
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="submit" id="save-button">Save Analysis</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Get Element References ---
+        const analysisForm = document.getElementById('analysis-form');
+        const chartDateInput = document.getElementById('chart-date');
+        const chartTimeInput = document.getElementById('chart-time');
+        const principleRadios = document.getElementsByName('principle-group');
+        const strategyContainer = document.getElementById('strategy-options-container');
+        const reviewInputs = document.querySelectorAll('.principle-section input[type="checkbox"], .principle-section input[type="radio"]');
+        const goNoGoRadios = document.querySelectorAll('.go-nogo input[type="radio"]');
+
+        const principleStrategies = {
+            'Range': ['VA Fade', 'POC Reversion (Rotation)'],
+            'Continuation': ['HVN Retracement', 'LVN Breakout'],
+            'Reversal': ['POC Reversion (Countertrend)'],
+            'Failed Reversal': ['Failed Reversal → Breakout Continuation'],
+            'VPOC Migration': ['VPOC Migration Bias'],
+            'Other': ['14:30 VSR', '80% Rule', 'VWAP Morning Retest']
+        };
+        const otherStrategies = principleStrategies['Other'];
+
+        // --- Function to set default date and time ---
+        function setDefaultDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            chartDateInput.value = `${year}-${month}-${day}`;
+
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            chartTimeInput.value = `${hours}${minutes}`;
+            
+            chartTimeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        // --- Event Listener for Time-based Autofill ---
+        chartTimeInput.addEventListener('input', function() {
+            const timeValue = parseInt(this.value, 10);
+            
+            const sessionRadios = document.getElementsByName('session');
+            const svpRadios = document.getElementsByName('svp-source');
+            const clearRadios = (radios) => radios.forEach(radio => radio.checked = false);
+            clearRadios(sessionRadios);
+            clearRadios(svpRadios);
+
+            if (timeValue >= 0 && timeValue <= 1159) {
+                document.querySelector('input[name="session"][value="Morning"]').checked = true;
+                document.querySelector('input[name="svp-source"][value="Prior"]').checked = true;
+            } else if (timeValue >= 1200 && timeValue <= 2359) {
+                document.querySelector('input[name="session"][value="Afternoon"]').checked = true;
+                document.querySelector('input[name="svp-source"][value="Current"]').checked = true;
+            }
+        });
+
+        // --- Event Listener for Strategy Autofill in Execution Plan ---
+        principleRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.checked) {
+                    const selectedPrinciple = this.value;
+                    const principleSpecificStrategies = principleStrategies[selectedPrinciple] || [];
+                    
+                    const allAvailableStrategies = [...new Set([...principleSpecificStrategies, ...otherStrategies])];
+                    
+                    strategyContainer.innerHTML = ''; 
+                    if (allAvailableStrategies.length > 0) {
+                        allAvailableStrategies.forEach(strategy => {
+                            const label = document.createElement('label');
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.name = 'commit-strategy';
+                            checkbox.value = strategy;
+                            label.appendChild(checkbox);
+                            label.appendChild(document.createTextNode(` ${strategy}`));
+                            strategyContainer.appendChild(label);
+                        });
+                    } else {
+                        strategyContainer.innerHTML = '<span class="notes">Select a principle group to see strategies.</span>';
+                    }
+                }
+            });
+        });
+
+        // --- Event Listener to auto-select Principle Group based on review interaction ---
+        const updateActivePrinciple = (event) => {
+            const table = event.target.closest('table');
+            if (table && table.dataset.principle) {
+                const principle = table.dataset.principle;
+                const principleRadio = document.querySelector(`input[name="principle-group"][value="${principle}"]`);
+                if (principleRadio && !principleRadio.checked) {
+                    principleRadio.checked = true;
+                    principleRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+        };
+
+        reviewInputs.forEach(input => {
+            input.addEventListener('change', updateActivePrinciple);
+        });
+
+        // --- Event Listener to auto-check Execution Plan strategy on "Go" ---
+        const updateExecPlanOnGo = (event) => {
+            const goNogoGroup = event.target.closest('.go-nogo');
+            if (goNogoGroup && goNogoGroup.dataset.strategyName) {
+                const strategyName = goNogoGroup.dataset.strategyName;
+                const isGo = event.target.value === 'go' && event.target.checked;
+                
+                const strategyCheckbox = document.querySelector(`#strategy-options-container input[value="${strategyName}"]`);
+                
+                if (strategyCheckbox) {
+                    strategyCheckbox.checked = isGo;
+                }
+            }
+        };
+
+        goNoGoRadios.forEach(radio => {
+            radio.addEventListener('change', updateExecPlanOnGo);
+        });
+
+        // --- Event listener for the Save Button ---
+        analysisForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Stop the default form submission
+
+            const submitButton = document.getElementById('save-button');
+            const originalButtonText = submitButton.textContent;
+            submitButton.textContent = 'Saving...';
+            submitButton.disabled = true;
+
+            const formData = new FormData(analysisForm);
+            const data = {};
+
+            for (const [key, value] of formData.entries()) {
+                if (data[key]) {
+                    if (!Array.isArray(data[key])) {
+                        data[key] = [data[key]];
+                    }
+                    data[key].push(value);
+                } else {
+                    data[key] = value;
+                }
+            }
+
+            // Create the downloadable file
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            const now = new Date();
+            const timestamp = now.toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-');
+            a.href = url;
+            a.download = `fcpo_analysis_${timestamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Provide user feedback
+            submitButton.textContent = 'Saved!';
+            setTimeout(() => {
+                submitButton.textContent = originalButtonText;
+                submitButton.disabled = false;
+            }, 2000);
+        });
+
+
+        // --- Initial Load ---
+        setDefaultDateTime();
+    });
+</script>
+
+</body>
+</html>
