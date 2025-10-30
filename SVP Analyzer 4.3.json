@@ -1,0 +1,988 @@
+{
+  "name": "SVP Analyzer 4.3",
+  "nodes": [
+    {
+      "parameters": {
+        "functionCode": "return items.map(item => {\n  // 📦 Extract the image data from body.imageBase64\n  const data =\n    item.json.body?.imageBase64 || // ✅ your real location\n    item.json.chartImageBase64 ||\n    item.json.chartImage ||\n    (item.binary && item.binary.data && item.binary.data.data);\n\n  if (!data) {\n    item.json._chartDecodeError = 'No chart image found';\n    return item;\n  }\n\n  // 🧩 Decode Base64 to binary\n  const mime = 'image/png';\n  const buffer = Buffer.from(data, 'base64');\n\n  // 🧾 Store both binary and metadata\n  item.binary = item.binary || {};\n  item.binary.chart = {\n    data: buffer,\n    mimeType: mime,\n    fileName: item.json.body?.fileName || 'chart.png'\n  };\n\n  item.json.chartMeta = { source: 'Webhook', status: 'Decoded OK' };\n  item.json.chartBase64 = data; // ✅ ready for AI nodes\n\n  return item;\n});\n"
+      },
+      "name": "Decode Chart Image",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -1616,
+        368
+      ],
+      "id": "c53297de-079e-40ce-8576-df761d65af91"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Checklist 2.1 Object - Template Generator\n// Creates proper structure for tracking (optional - AI builds its own)\n\nreturn items.map(item => {\n  const chartTime = item.json.body?.chartTime || item.json.chartMeta?.time;\n  let session = 'Unknown', svpSource = 'Unknown';\n  \n  if (chartTime) {\n    const hour = parseInt(chartTime.substring(0, 2));\n    session = hour < 12 ? 'Morning' : 'Afternoon';\n    svpSource = hour < 12 ? 'Prior Session' : 'Current Session';\n  }\n  \n  item.json.checklist2_1 = {\n    session: session,\n    svpSource: svpSource,\n    timestamp: new Date().toISOString(),\n    note: 'Template only - AI generates actual analysis from chart'\n  };\n  \n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1392,
+        368
+      ],
+      "id": "84022e27-66a0-4c79-b0ab-b38b0a63ea1e",
+      "name": "Build Checklist 2.1 Object"
+    },
+    {
+      "parameters": {
+        "resource": "object",
+        "operation": "create",
+        "bucketName": "fcpo-analysis",
+        "objectName": "={{ $json.fileName }}",
+        "updateProjection": "noAcl",
+        "createBinaryPropertyName": "chart",
+        "createData": {
+          "cacheControl": "public,max-age=3600",
+          "contentDisposition": "inline",
+          "contentType": "text/html"
+        },
+        "createQuery": {},
+        "encryptionHeaders": {},
+        "requestOptions": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.googleCloudStorage",
+      "typeVersion": 1,
+      "position": [
+        448,
+        256
+      ],
+      "id": "ceca6665-d78b-41b5-9bf4-55abdc0e29a6",
+      "name": "Create an object",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "credentials": {
+        "googleCloudStorageOAuth2Api": {
+          "id": "YkAuwa2ugsty9NLP",
+          "name": "Google Cloud Storage account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        0,
+        512
+      ],
+      "id": "d1f6b2ef-5f38-49d5-afd9-6045cdd5d7dc",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "68e40302-31ac-4c20-86d7-572d653fc376",
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "storage#object",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3361e745-50a1-4724-8556-06317701fabe",
+                    "leftValue": "=={{ $json.kind }}",
+                    "rightValue": "storage#object",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notContains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        672,
+        256
+      ],
+      "id": "d7d2aabf-c0ae-4f00-8c86-1af36473545a",
+      "name": "Switch",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/output/{{ $('CFR4.3.1').item.json.fileName }}\n",
+        "dataPropertyName": "chart",
+        "options": {
+          "append": false
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        432
+      ],
+      "id": "90b3d9b1-5399-49a9-8e3b-315b3e24ef5c",
+      "name": "Local Save",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Combined Extractor for CFR 4.3 - DYNAMIC PROVIDER DETECTION ===\nconst input = $input.all()[0] || {};\nconst json = input.json || {};\nconst binary = input.binary || {};\n\nconst fileName = json.fileName || (binary.chart && binary.chart.fileName) || 'Unnamed_Report.html';\nlet html = '';\nif (binary.chart && binary.chart.data) {\n    html = Buffer.from(binary.chart.data).toString('utf-8');\n}\n\nconsole.log('=== Extractor: Dynamic Provider Detection ===');\nconsole.log('HTML length:', html.length);\n\n// ===== STEP 1: DYNAMICALLY EXTRACT PROVIDER NAMES FROM HTML =====\n\n// Debug: Show sample of HTML structure\nconsole.log('\\n=== HTML Structure Debug ===');\nconst h3Sample = html.match(/<h3[^>]*>[\\s\\S]{0,200}/g);\nif (h3Sample && h3Sample.length > 0) {\n    console.log('Sample H3 tags found:', h3Sample.length);\n    for (let i = 0; i < Math.min(5, h3Sample.length); i++) {\n        console.log('H3 #' + (i+1) + ':', h3Sample[i].substring(0, 150));\n    }\n}\n\nconst providerNames = [];\n\n// Try multiple extraction patterns\n// Pattern 1: Stacked Outline View format - <h3>1. ProviderName</h3>\nconst pattern1 = /<h3[^>]*class=\"[^\"]*text-2xl[^\"]*\"[^>]*>\\s*\\d+\\.\\s*([^<]+?)\\s*<\\/h3>/gi;\nlet match1;\nwhile ((match1 = pattern1.exec(html)) !== null) {\n    const providerName = match1[1].trim();\n    if (providerName && providerNames.indexOf(providerName) === -1) {\n        providerNames.push(providerName);\n        console.log('Found provider (Pattern 1):', providerName);\n    }\n}\n\n// Pattern 2: Summary View table headers - <th>ProviderName</th>\nif (providerNames.length === 0) {\n    console.log('Pattern 1 failed, trying Pattern 2 (table headers)');\n    const pattern2 = /<thead><tr[^>]*>[\\s\\S]*?<\\/tr><\\/thead>/i;\n    const headerMatch = html.match(pattern2);\n    \n    if (headerMatch) {\n        console.log('Found table header section');\n        const thRegex = /<th[^>]*>([^<]+?)<\\/th>/gi;\n        let thMatch;\n        let skipFirst = true; // Skip \"FIELD\" column\n        \n        while ((thMatch = thRegex.exec(headerMatch[0])) !== null) {\n            const name = thMatch[1].trim();\n            if (skipFirst) {\n                skipFirst = false;\n                continue;\n            }\n            if (name && name !== 'FIELD' && providerNames.indexOf(name) === -1) {\n                providerNames.push(name);\n                console.log('Found provider (Pattern 2):', name);\n            }\n        }\n    }\n}\n\n// Pattern 3: Strategy Analysis details sections\nif (providerNames.length === 0) {\n    console.log('Pattern 2 failed, trying Pattern 3 (details summary)');\n    const pattern3 = /<summary[^>]*>([^-]+)\\s*-\\s*Strategy Analysis<\\/summary>/gi;\n    let match3;\n    \n    while ((match3 = pattern3.exec(html)) !== null) {\n        const providerName = match3[1].trim();\n        if (providerName && providerNames.indexOf(providerName) === -1) {\n            providerNames.push(providerName);\n            console.log('Found provider (Pattern 3):', providerName);\n        }\n    }\n}\n\n// Pattern 4: Execution Plan grid sections\nif (providerNames.length === 0) {\n    console.log('Pattern 3 failed, trying Pattern 4 (execution plan h4)');\n    const pattern4 = /<h4[^>]*class=\"[^\"]*font-extrabold[^\"]*\"[^>]*>([^<]+?)<\\/h4>/gi;\n    let match4;\n    \n    while ((match4 = pattern4.exec(html)) !== null) {\n        const providerName = match4[1].trim();\n        if (providerName && providerNames.indexOf(providerName) === -1) {\n            providerNames.push(providerName);\n            console.log('Found provider (Pattern 4):', providerName);\n        }\n    }\n}\n\n// Fallback to default providers if none found\nif (providerNames.length === 0) {\n    console.log('No providers found in HTML using any pattern, using defaults');\n    providerNames.push('Claude', 'OpenAI', 'Gemini');\n}\n\nconsole.log('\\n=== Final Provider List ===');\nconsole.log('Total providers found:', providerNames.length);\nfor (let i = 0; i < providerNames.length; i++) {\n    console.log((i+1) + '. ' + providerNames[i]);\n}\n\n// Create results map with dynamic providers\nconst results = new Map();\nfor (let i = 0; i < providerNames.length; i++) {\n    results.set(providerNames[i], { summary: '', plan: '', marketData: {} });\n}\n\n// ===== STEP 2: EXTRACT MARKET DATA FROM SUMMARY VIEW TABLE =====\nfunction extractFromSummaryTable(fieldLabel) {\n    // Match the row with the field label and extract all <td> values\n    const rowRegex = new RegExp('<tr[^>]*>\\\\s*<td[^>]*>' + fieldLabel + '</td>([\\\\s\\\\S]*?)</tr>', 'i');\n    const rowMatch = html.match(rowRegex);\n    \n    if (rowMatch) {\n        const tdRegex = /<td[^>]*>([^<]*)<\\/td>/g;\n        const values = [];\n        let tdMatch;\n        \n        while ((tdMatch = tdRegex.exec(rowMatch[1])) !== null) {\n            values.push(tdMatch[1].trim());\n        }\n        \n        return values;\n    }\n    \n    return [];\n}\n\n// Extract market data for each provider\nconst fieldLabels = ['Chart Timestamp', 'Market State', 'Directional Bias', 'VWAP', 'VAH', 'VAL', 'POC'];\nconst marketDataByField = {};\n\nfor (let i = 0; i < fieldLabels.length; i++) {\n    const label = fieldLabels[i];\n    marketDataByField[label] = extractFromSummaryTable(label);\n    console.log(label + ':', marketDataByField[label]);\n}\n\n// Assign market data to each provider\nfor (let i = 0; i < providerNames.length; i++) {\n    const provider = providerNames[i];\n    const providerData = results.get(provider);\n    \n    providerData.marketData = {\n        timestamp: marketDataByField['Chart Timestamp'][i] || '—',\n        state: marketDataByField['Market State'][i] || '—',\n        bias: marketDataByField['Directional Bias'][i] || '—',\n        vwap: marketDataByField['VWAP'][i] || '—',\n        vah: marketDataByField['VAH'][i] || '—',\n        val: marketDataByField['VAL'][i] || '—',\n        poc: marketDataByField['POC'][i] || '—'\n    };\n}\n\n// ===== STEP 3: EXTRACT EXECUTIVE SUMMARY (DYNAMIC) =====\n// Build dynamic regex pattern that matches any provider name\nconst providerPattern = providerNames.map(function(p) {\n    return p.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); // Escape special regex chars\n}).join('|');\n\nconst summaryRegex = new RegExp('<h3[^>]*>\\\\s*\\\\d+\\\\.\\\\s*(' + providerPattern + ')[\\\\s\\\\S]*?<h4[^>]*>[^<]*Executive Summary[^<]*<\\\\/h4>[\\\\s\\\\S]*?<p[^>]*>([\\\\s\\\\S]*?)<\\\\/p>', 'gi');\nlet sm;\n\nconsole.log('\\n=== Extracting Executive Summaries ===');\nwhile ((sm = summaryRegex.exec(html)) !== null) {\n    const provider = sm[1].trim();\n    const content = sm[2].replace(/<[^>]+>/g, '').trim();\n    console.log('Found summary for:', provider);\n    if (results.has(provider)) {\n        results.get(provider).summary = content;\n    }\n}\n\n// ===== STEP 4: EXTRACT EXECUTION PLAN (DYNAMIC) =====\nconst planRegex = new RegExp('<h3[^>]*>\\\\s*\\\\d+\\\\.\\\\s*(' + providerPattern + ')[\\\\s\\\\S]*?<summary[^>]*>[^<]*Execution Plan[^<]*<\\\\/summary>[\\\\s\\\\S]*?<pre[^>]*>([\\\\s\\\\S]*?)<\\\\/pre>', 'gi');\nlet pm;\n\nconsole.log('\\n=== Extracting Execution Plans ===');\nwhile ((pm = planRegex.exec(html)) !== null) {\n    const provider = pm[1].trim();\n    const content = pm[2].replace(/<[^>]+>/g, '').trim();\n    console.log('Found plan for:', provider);\n    if (results.has(provider)) {\n        results.get(provider).plan = content;\n    }\n}\n\n// ===== STEP 5: FORMAT OUTPUT =====\nconst output = [];\nconst resultsArray = Array.from(results.entries());\n\nfor (let i = 0; i < resultsArray.length; i++) {\n    const entry = resultsArray[i];\n    const provider = entry[0];\n    const data = entry[1];\n    \n    const summary = data.summary || '—';\n    const plan = data.plan || '—';\n    const md = data.marketData;\n\n    // Compact market data for Pushover (character limit consideration)\n    const compactMarketData = md.timestamp + '\\nState: ' + md.state + ' | Bias: ' + md.bias + '\\nVWAP: ' + md.vwap + ' | POC: ' + md.poc + '\\nVAH: ' + md.vah + ' | VAL: ' + md.val;\n\n    output.push({\n        json: {\n            provider: provider,\n            fileName: fileName,\n            sections: {\n                executive_summary: summary,\n                execution_plan: plan,\n                market_data: md\n            },\n            messages: {\n                telegram: provider + '\\n\\nMarket Data:\\n' + md.timestamp + '\\nState: ' + md.state + ' | Bias: ' + md.bias + '\\nVWAP: ' + md.vwap + ' | VAH: ' + md.vah + ' | VAL: ' + md.val + ' | POC: ' + md.poc + '\\n\\nExecutive Summary:\\n' + summary + '\\n\\nExecution Plan:\\n' + plan,\n                pushover: compactMarketData + '\\n\\n' + summary + '\\n\\n' + plan\n            }\n        }\n    });\n}\n\n// ===== STEP 6: FAILSAFE =====\nlet allEmpty = true;\nfor (let i = 0; i < output.length; i++) {\n    if (output[i].json.sections.executive_summary !== '—' || output[i].json.sections.execution_plan !== '—') {\n        allEmpty = false;\n        break;\n    }\n}\n\nif (allEmpty) {\n    console.log('WARNING: No valid sections found in HTML');\n    return [{\n        json: {\n            provider: 'Unknown',\n            fileName: fileName,\n            messages: {\n                telegram: 'No valid sections found in ' + fileName + '. Check CFR 4.3 HTML.',\n                pushover: 'No valid sections found in ' + fileName + '.'\n            }\n        }\n    }];\n}\n\nconsole.log('\\n=== Extraction Complete ===');\nconsole.log('Extracted data for ' + output.length + ' providers');\nfor (let i = 0; i < output.length; i++) {\n    console.log('- ' + output[i].json.provider);\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        640
+      ],
+      "id": "dcd41892-4dd3-43cb-876c-179d43010841",
+      "name": "Extractor"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "Qwen3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "4f97d34b-a67c-4edc-86aa-c5ff91d17937"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "OpenRouter1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "476a1faa-ce35-4af0-9307-8702018d2fb1",
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "Claude",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "OpenRouter2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a32b9345-afe8-45ad-8d91-0bfde9d0eb5c",
+                    "leftValue": "={{ $json.provider }}",
+                    "rightValue": "Gemini",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Gemini"
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        672,
+        624
+      ],
+      "id": "94cebf4e-539e-4dab-97d3-5c8459a114fb",
+      "name": "Switcher",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"contents\": [\n      {\n        \"parts\": [\n          {\n            \"text\": $json.prompt\n          },\n          {\n            \"inline_data\": {\n              \"mime_type\": \"image/png\",\n              \"data\": $json.chartBase64\n            }\n          }\n        ]\n      }\n    ],\n    \"generationConfig\": {\n      \"temperature\": 0.0,\n      \"maxOutputTokens\": 8096\n    }\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -448,
+        640
+      ],
+      "id": "d728745d-915f-4529-ad08-2cc0b39baa20",
+      "name": "Gemini HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "uYDJHQRxF2naCcyI",
+          "name": "Gemii Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chart = $('CRC4.3').item.json.chartBase64;\nreturn items.map(item => ({\n  json: { ...item.json, chartBase64: chart }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        448
+      ],
+      "id": "f2cc3384-ac30-491e-8c74-36ac484e1cb1",
+      "name": "Preserve Chart 2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chart = $('CRC4.3').item.json.chartBase64;\nreturn items.map(item => ({\n  json: { ...item.json, chartBase64: chart }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        640
+      ],
+      "id": "a06e2732-fd83-4a4f-ac68-37ad786f0c1b",
+      "name": "Preserve Chart 3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chart = $('CRC4.3').item.json.chartBase64;\nreturn items.map(item => ({\n  json: { ...item.json, chartBase64: chart }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        256
+      ],
+      "id": "c97499f1-87a4-4260-9577-6f6528b30b2f",
+      "name": "Preserve Chart 1"
+    },
+    {
+      "parameters": {
+        "userKey": "u7cjtdy388z8vrobsxc8za2gcpgrf5",
+        "message": "={{ $json.sections.market_data.timestamp }} |  {{ $json.sections.market_data.state }} | {{ $json.sections.market_data.bias }} | \nVWAP: {{ $json.sections.market_data.vwap }} | VAH: {{ $json.sections.market_data.vah }} | POC: {{ $json.sections.market_data.poc }} | VAL: {{ $json.sections.market_data.val }} \n\n{{ $json.sections.executive_summary }}\n\n{{ $json.sections.execution_plan }}",
+        "priority": 0,
+        "additionalFields": {
+          "html": true,
+          "title": "={{ $json.provider }}"
+        }
+      },
+      "type": "n8n-nodes-base.pushover",
+      "typeVersion": 1,
+      "position": [
+        896,
+        448
+      ],
+      "id": "e95ef0b2-688e-4f6f-8a89-cc643398cff7",
+      "name": "Pushover 1",
+      "executeOnce": false,
+      "credentials": {
+        "pushoverApi": {
+          "id": "VYgnc0W1QlSSaush",
+          "name": "Pushover account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "userKey": "u7cjtdy388z8vrobsxc8za2gcpgrf5",
+        "message": "={{ $json.sections.market_data.timestamp }} |  {{ $json.sections.market_data.state }} | {{ $json.sections.market_data.bias }} | \nVWAP: {{ $json.sections.market_data.vwap }} | VAH: {{ $json.sections.market_data.vah }} | POC: {{ $json.sections.market_data.poc }} | VAL: {{ $json.sections.market_data.val }} \n\n{{ $json.sections.executive_summary }}\n\n{{ $json.sections.execution_plan }}",
+        "priority": 0,
+        "additionalFields": {
+          "html": true,
+          "title": "={{ $json.provider }}"
+        }
+      },
+      "type": "n8n-nodes-base.pushover",
+      "typeVersion": 1,
+      "position": [
+        896,
+        640
+      ],
+      "id": "fa408544-9ef6-47b4-a309-ffa674082dcc",
+      "name": "Pushover - 2",
+      "executeOnce": false,
+      "credentials": {
+        "pushoverApi": {
+          "id": "VYgnc0W1QlSSaush",
+          "name": "Pushover account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "userKey": "u7cjtdy388z8vrobsxc8za2gcpgrf5",
+        "message": "={{ $json.sections.market_data.timestamp }} |  {{ $json.sections.market_data.state }} | {{ $json.sections.market_data.bias }} | \nVWAP: {{ $json.sections.market_data.vwap }} | VAH: {{ $json.sections.market_data.vah }} | POC: {{ $json.sections.market_data.poc }} | VAL: {{ $json.sections.market_data.val }} \n\n{{ $json.sections.executive_summary }}\n\n{{ $json.sections.execution_plan }}\n\n",
+        "priority": 0,
+        "additionalFields": {
+          "html": true,
+          "title": "={{ $json.provider }}"
+        }
+      },
+      "type": "n8n-nodes-base.pushover",
+      "typeVersion": 1,
+      "position": [
+        896,
+        832
+      ],
+      "id": "f414eb21-8ba7-4e02-809b-077602735649",
+      "name": "Pushover - 3",
+      "executeOnce": false,
+      "credentials": {
+        "pushoverApi": {
+          "id": "VYgnc0W1QlSSaush",
+          "name": "Pushover account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  let chartBase64 = '';\n  if (item.binary?.chart?.data) {\n    const buffer = item.binary.chart.data;\n    chartBase64 = Buffer.isBuffer(buffer) ? buffer.toString('base64') : Buffer.from(buffer).toString('base64');\n  }\n\n  const prompt = `You are an expert FCPO market analyst using the SVP 2.1 Framework.\n\n📊 TASK: Analyze the trading chart image and produce structured JSON following Checklist 2.1.\n\n🚨 MANDATORY SVP SOURCE RULE - READ THIS FIRST:\nBefore analyzing anything, determine the session:\n- If Chart Time is BEFORE 12:00 (e.g., 0900, 1100, 11:59) → This is MORNING SESSION\n  ➜ YOU MUST USE **PRIOR SESSION** SVP LEVELS (yesterday's VAH, VAL, POC)\n  ➜ DO NOT use today's/current session values for morning analysis\n  \n- If Chart Time is 12:00 OR AFTER (e.g., 1200, 1400, 1630) → This is AFTERNOON SESSION  \n  ➜ Use CURRENT SESSION SVP LEVELS (today's VAH, VAL, POC)\n\n**MORNING CHARTS (<12:00) ALWAYS USE YESTERDAY'S SVP - NO EXCEPTIONS**\n\n📋 ANALYSIS FRAMEWORK (READ FROM CHART):\n\n1. Chart Metadata: Title, Date (dd-mm-yyyy), Time (HHMM), Session (Morning <12:00 | Afternoon ≥12:00), SVP Source (Prior Session if Morning | Current Session if Afternoon)\n\n⚠️ CRITICAL SVP SOURCE RULES (MUST FOLLOW):\n   - **MORNING SESSION (Before 12:00)**: You MUST use PRIOR SESSION's SVP levels (VAH, VAL, POC from yesterday/previous session)\n   - **AFTERNOON SESSION (12:00 and after)**: Use CURRENT SESSION's SVP levels (VAH, VAL, POC from today)\n   - **If chart time is before 12:00**: Explicitly state \"SVP Source Used: Prior Session\" in metadata\n   - **If chart time is 12:00 or after**: Explicitly state \"SVP Source Used: Current Session\" in metadata\n   - The chart may show multiple SVP overlays - select the CORRECT one based on session time\n   - Document your SVP source selection in the \"SVP Source Used\" field\n\n2. Market Structure: Market State (Trending|Ranging|Reversal/Transition), Rotations Count, Directional Bias (Long|Short|Neutral with rationale based on SVP + VWAP + price action)\n\n3. Trading Zones (READ exact levels from chart): \n   - **FIRST: Check Chart Time to determine which SVP to read:**\n     * Time < 12:00 = Read PRIOR/YESTERDAY's SVP levels (usually shown as different color/label)\n     * Time ≥ 12:00 = Read CURRENT/TODAY's SVP levels\n   - VAH, VAL, POC (from correct SVP source per above rule)\n   - VWAP value and slope (measure angle: 0-10° flat, 10-25° gentle, 25-45° steep, >45° very steep)\n   - HVNs array, LVNs array\n   - **Double-check**: If morning chart, confirm you're reading prior session's value area, not current\n\n4. Strategy Analysis by Market State:\n   - TRENDING: VPB (VWAP Pullback), ORB (Opening Range Breakout - MORNING ONLY), LVB (LVN Breakout - ANYTIME)\n   - RANGING: VFR (VWAP Band Reversal)\n   - REVERSAL: RV (Return to Value), GF (Gap Fill), VSR (14:30 Volume Spike Reversal)\n\n   For each applicable strategy, assess TriggerScore and ConfluenceScore based on the definitions below.\n\n   **STRATEGY DEFINITIONS & CONFLUENCE CHECKLISTS:**\n   \n   **A. TRENDING (Continuation Principle):**\n   \n   1. **VPB (VWAP Pullback) / HVN Retracement:**\n      - **Time Window:** Anytime during trending market\n      - **Trigger:** Pullback to HVN/VWAP with declining volume, followed by a surge on bounce/rejection.\n      - **Confluence Checklist (Max 3):**\n         a. HVN is near VWAP.\n         b. RSI bias is intact (holds >50 for long, <50 for short).\n         c. Volume surges on bounce/rejection candle.\n         \n   2. **ORB (Opening Range Breakout) - MORNING SESSION ONLY:**\n      - **Time Window:** 10:30-11:00 ONLY (Morning session)\n      - **Context:** First 30 minutes define Opening Range High (ORH) and Opening Range Low (ORL)\n      - **Trigger:** Price breaks above ORH (long) or below ORL (short) with >200% of 10-bar volume MA\n      - **Confluence Checklist (Max 2):**\n         a. RSI aligned with breakout direction.\n         b. Volume expansion during the breakout.\n      - **IMPORTANT:** This strategy is INVALID after 11:00 or in afternoon sessions. If chart time is ≥12:00, mark as \"No Setup\" with TimeWindowValid=false.\n         \n   3. **LVB (LVN Breakout) - ANYTIME DURING TRENDING:**\n      - **Time Window:** Anytime during trending market (both morning and afternoon valid)\n      - **Context:** Price breaks through a thin Low Volume Node (LVN) - a price level with low trading activity\n      - **Trigger:** Strong candle closes ≥60% body inside a thin LVN with volume expansion\n      - **Confluence Checklist (Max 2):**\n         a. RSI aligned with breakout direction.\n         b. Volume expansion (≥120% of 10-bar MA) during the breakout.\n      - **Note:** LVNs can be identified on the volume profile as areas with notably less volume between HVNs\n   \n   **B. RANGING (Range Principle):**\n   \n   1. **VFR (VWAP Band Reversal) / VA Fade (Mean Reversion):**\n      - **Time Window:** Anytime during ranging market\n      - **Trigger:** Price breaches VAH (Short) or VAL (Long), fails to find acceptance, and closes back inside the Value Area.\n      - **Confluence Checklist (Max 3):**\n         a. RSI divergence at the extreme.\n         b. VWAP is stretched far from price.\n         c. Low/decreasing volume on the breakout attempt.\n         \n   **C. REVERSAL (Reversal Principle):**\n   \n   1. **RV (Return to Value) / POC Reversion (Countertrend):**\n      - **Time Window:** Anytime during reversal/transition\n      - **Trigger:** Failed breakout beyond VA (above VAH or below VAL), price closes back inside VA, retests POC, and rejects.\n      - **Confluence Checklist (Max 2):**\n         a. VWAP is near the POC during the retest.\n         b. Strong rejection candle confirms the move away from POC.\n         \n   2. **VSR (14:30 Volume Spike Reversal):**\n      - **Time Window:** 14:30-14:35 ONLY (Afternoon session)\n      - **Trigger:** At 14:30-14:35, volume spike is ≥200% 10-bar MA, and price crosses VWAP on the spike bar.\n      - **Confluence Checklist (Max 1):**\n         a. Reaction/rejection occurs at VAH, VAL, or a key LVN during the spike.\n\n   **STRATEGY SELECTION LOGIC BY TIME:**\n   \n   📌 **MORNING SESSION (Before 12:00):**\n   - For TRENDING market: Analyze VPB, ORB (if 10:30-11:00), and LVB\n   - ORB is VALID only if chart time is between 10:30-11:00\n   - LVB is VALID at any time during trending\n   \n   📌 **AFTERNOON SESSION (12:00 and after):**\n   - For TRENDING market: Analyze VPB and LVB ONLY\n   - ORB should be marked as \"No Setup\" with TimeWindowValid=false and Notes explaining \"ORB only valid in morning 10:30-11:00\"\n   - VSR becomes available if chart time is 14:30-14:35\n\n   For each applicable strategy:\n   - TriggerScore: 0 (none) | 1 (partial) | 2 (confirmed)\n   - ConfluenceScore: \"X/Y\" format (Y must match Max in checklist above)\n   - ConfluenceFactors: array of specific factors\n   - TimeWindowValid: boolean (check time window for each strategy)\n   - SetupQuality: \"High Confidence\" | \"Potential\" | \"No Setup\"\n   - VisualOverride: true|false\n   - VisualEvidence: string if override=true\n   - Notes: additional context (especially important for explaining time window violations)\n\n5. Selection & Conflict Resolution: If multiple setups, select BEST based on highest TriggerScore, most confluence, best risk/reward. Provide RankReason.\n\n6. Execution Plan (ONLY if High Confidence setup): Strategy, Direction (Long|Short), Entry zone and trigger, Stop loss level and reason, Targets, Risk/Reward ratio\n\n7. Executive Summary (3-5 sentences): Current market bias, key volume/structural context, primary setup, execution guidance or \"No Setup\"\n\n📋 OUTPUT SCHEMA (JSON only, no markdown):\n\n{\n  \"Chart Metadata\": {\n    \"Chart Title\": \"string or null\",\n    \"Chart Date\": \"dd-mm-yyyy or null\",\n    \"Chart Time\": \"HHMM or null\",\n    \"Analysis Generated\": \"dd-mm-yyyy, HH:MM MYT\",\n    \"Session\": \"Morning|Afternoon|Unknown\",\n    \"SVP Source Used\": \"Prior Session|Current Session|Unknown\"\n    ⚠️ IMPORTANT: If Chart Time < 12:00, SVP Source MUST be \"Prior Session\"\n                  If Chart Time ≥ 12:00, SVP Source should be \"Current Session\"\n  },\n  \"Execution Framework - Gatekeeper\": {\n    \"Market State\": \"Trending|Ranging|Reversal/Transition\",\n    \"RotationsCount\": number or null,\n    \"Directional Bias\": {\n      \"Direction\": \"Long|Short|Neutral\",\n      \"Rationale\": \"string\"\n    },\n    \"VWAP\": {\n      \"Value\": number or null,\n      \"Slope\": \"Up|Flat|Down\",\n      \"Angle\": number or null\n    },\n    \"Trading Zones\": {\n      \"VAH\": number or null,\n      \"VAL\": number or null,\n      \"POC\": number or null,\n      \"HVNs\": [number array],\n      \"LVNs\": [number array]\n    }\n  },\n  \"Principle Section Review\": {\n    \"Trending\": [\n      {\n        \"Strategy\": \"VPB|ORB|LVB\",\n        \"TriggerScore\": 0|1|2,\n        \"ConfluenceScore\": \"X/Y\",\n        \"ConfluenceFactors\": [\"factor1\", \"factor2\"],\n        \"TimeWindowValid\": true|false,\n        \"SetupQuality\": \"High Confidence|Potential|No Setup\",\n        \"VisualOverride\": true|false,\n        \"VisualEvidence\": \"string or null\",\n        \"Notes\": \"string or null\"\n      }\n    ],\n    \"Ranging\": [\n      {\n        \"Strategy\": \"VFR\",\n        \"TriggerScore\": 0|1|2,\n        \"ConfluenceScore\": \"X/Y\",\n        \"ConfluenceFactors\": [\"factor1\", \"factor2\"],\n        \"TimeWindowValid\": true|false,\n        \"SetupQuality\": \"High Confidence|Potential|No Setup\",\n        \"VisualOverride\": true|false,\n        \"VisualEvidence\": \"string or null\",\n        \"Notes\": \"string or null\"\n      }\n    ],\n    \"Reversal\": [\n      {\n        \"Strategy\": \"RV|GF|VSR\",\n        \"TriggerScore\": 0|1|2,\n        \"ConfluenceScore\": \"X/Y\",\n        \"ConfluenceFactors\": [\"factor1\", \"factor2\"],\n        \"TimeWindowValid\": true|false,\n        \"SetupQuality\": \"High Confidence|Potential|No Setup\",\n        \"VisualOverride\": true|false,\n        \"VisualEvidence\": \"string or null\",\n        \"Notes\": \"string or null\"\n      }\n    ]\n  },\n  \"Selection & Conflict Resolution\": {\n    \"SelectedStrategies\": [\n      {\n        \"Strategy\": \"string\",\n        \"SetupQuality\": \"High Confidence\",\n        \"RankReason\": \"string\"\n      }\n    ],\n    \"SelectionRationale\": \"string or null\"\n  },\n  \"Execution Plan\": {\n    \"Strategy\": \"string or null\",\n    \"Direction\": \"Long|Short|None\",\n    \"Entry\": \"string or null\",\n    \"StopLoss\": \"string or null\",\n    \"Targets\": \"string or null\",\n    \"RiskReward\": \"string or null\"\n  },\n  \"summary\": \"3-6 sentence executive summary\"\n}\n\n⚠️ RULES:\n1. Output ONLY valid JSON (no markdown, no explanations)\n2. READ values from chart - don't calculate VWAP/SVP\n3. If can't read value, use null\n4. Be honest: if no valid setup, mark \"No Setup\"\n5. Use Malaysian Time (MYT)\n6. **CRITICAL SVP RULE - CANNOT BE IGNORED**:\n   - Morning charts (time < 12:00): MUST read PRIOR/YESTERDAY session SVP (VAH/VAL/POC)\n   - Afternoon charts (time ≥ 12:00): Read CURRENT/TODAY session SVP (VAH/VAL/POC)\n   - If you see multiple SVP overlays on chart, choose the correct one based on time\n   - Set \"SVP Source Used\" field to match your selection\n   - **GPT models**: Pay special attention to this rule - use PRIOR session for morning\n7. **CRITICAL STRATEGY TIME WINDOW RULES**:\n   - ORB is ONLY valid in morning session 10:30-11:00\n   - If chart shows afternoon time (≥12:00), mark ORB as \"No Setup\" with TimeWindowValid=false\n   - LVB is valid anytime during trending market (morning or afternoon)\n   - VSR is ONLY valid at 14:30-14:35 in afternoon session`;\n\n  // ✅ CRITICAL FIX: Pass through intermarket confluence data to AI nodes\n  return {\n    json: {\n      prompt: prompt,\n      chartBase64: chartBase64,  // Store for later use\n      ExternalConfluence: item.json.ExternalConfluence || null,  // ✅ NEW: Pass through\n      MPOB_Factor: item.json.MPOB_Factor || null  // ✅ NEW: Pass through\n    },\n    binary: {\n      chart: item.binary.chart  // Keep binary for AI nodes\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        448
+      ],
+      "id": "21dfb873-4005-46b2-a6c2-37807815b08c",
+      "name": "CRC4.3"
+    },
+    {
+      "parameters": {
+        "method": "=POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"perplexity/sonar\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"Context: Analyzing FCPO (Crude Palm Oil futures) for \" + $json.queryContext + \". CRITICAL: Prioritize Dalian Commodity Exchange (DCE) Soybean Oil data as it has highest correlation (0.85) to FCPO. Get CBOT Soybean Oil as secondary source only.\"\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"Provide directional bias for: 1) **DCE Soybean Oil (DSOY)** - PRIORITY: Current trend, price level, percent change, and spread to FCPO (Bullish/Bearish/Neutral). 2) CBOT Soybean Oil (ZL/SBO) - Multi-day trend and spread to FCPO as backup. 3) WTI/Brent Crude Oil - price level, percent change, and bias. 4) MPOB inventory - stock levels, YoY percent change, and supply-demand bias\"\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"Return structured data with: LeaderCommodity (prefer DCE Soy Oil if available, then CBOT Soy Oil, then Crude), SpreadToFCPO (%), Bias, Confidence (0-1), rationale. Use latest available data from Asian and US markets.\"\n        }\n      ]\n    }\n  ],\n  \"temperature\": 0.1,\n  \"max_tokens\": 8096\n} }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1520,
+        592
+      ],
+      "id": "87995d51-31a0-4282-ba7b-98c24af78731",
+      "name": "Perplexity",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "FUqRTtditu9DyQ7n",
+          "name": "OpenAi account"
+        },
+        "httpBasicAuth": {
+          "id": "aUciWShQwi2U0l7u",
+          "name": "Openrouter"
+        },
+        "httpHeaderAuth": {
+          "id": "uYDJHQRxF2naCcyI",
+          "name": "Gemii Header Auth account"
+        },
+        "httpBearerAuth": {
+          "id": "Z9lqbLNlJrhXAqhL",
+          "name": "Openrouter Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Parse Perplexity response\n  const px = item.json || {};\n  \n  // Handle OpenRouter response format\n  let responseText = '';\n  if (px.choices && px.choices[0] && px.choices[0].message) {\n    responseText = px.choices[0].message.content;\n  } else if (px.content) {\n    responseText = px.content;\n  } else if (typeof px === 'string') {\n    responseText = px;\n  }\n  \n  console.log('=== Perplexity Response (First 1500 chars) ===');\n  console.log(responseText.substring(0, 1500));\n  \n  // ===== ENHANCED PARSING FOR DCE + CBOT + CRUDE + MPOB =====\n  \n  function extractFromMarkdown(text) {\n    const results = {\n      dceSoyBias: null,\n      dceSoySpread: null,\n      cbotSoyBias: null,\n      cbotSoySpread: null,\n      crudeBias: null,\n      crudeChange: null,\n      mpobBias: null,\n      mpobYoY: null\n    };\n    \n    // ===== DCE SOYBEAN OIL (PRIORITY #1) =====\n    // Table format: | **DCE Soybean Oil** | SpreadColumn | BiasColumn | ConfidenceColumn |\n    // We need to capture BOTH spread (column 2) AND bias (column 3)\n    \n    const dceRowMatch = text.match(/\\|\\s*\\*\\*DCE Soybean Oil\\*\\*\\s*\\|([^|]+)\\|([^|]+)\\|([^|]+)\\|/i);\n    if (dceRowMatch) {\n      const spreadText = dceRowMatch[1].trim();\n      const biasText = dceRowMatch[2].trim();\n      const confidenceText = dceRowMatch[3].trim();\n      \n      console.log('DCE Row Match - Spread:', spreadText, '| Bias:', biasText, '| Confidence:', confidenceText);\n      \n      // Extract Bias (should be in column 2: \"Bearish\", \"Bullish\", \"Neutral\")\n      results.dceSoyBias = biasText;\n      \n   // Extract Spread from column 1\n// Handle formats: \"~Neutral (0-2%)\", \"-1.14%\", \"Slightly Bearish\"\nif (spreadText.match(/0[-–]2/)) {\n  // Range like \"0-2%\" → use midpoint\n  results.dceSoySpread = 1.0;\n} else if (spreadText.toLowerCase().includes('neutral')) {\n  // \"~Neutral\" without range → minimal spread\n  results.dceSoySpread = 0.5;\n} else {\n  // Try to extract explicit percentage\n  const spreadNumMatch = spreadText.match(/([+-]?[\\d.]+)%/);\n  if (spreadNumMatch) {\n    results.dceSoySpread = parseFloat(spreadNumMatch[1]);\n  } else {\n    // Default if nothing matches\n    results.dceSoySpread = 1.0;\n  }\n}  \n      console.log('DCE Extracted - Bias:', results.dceSoyBias, '| Spread:', results.dceSoySpread);\n    }\n    \n    // Fallback: Look in detailed notes section\n    if (!results.dceSoyBias) {\n      const dceNotesMatch = text.match(/DCE Soybean Oil.*?(bearish|bullish)/i);\n      if (dceNotesMatch) {\n        results.dceSoyBias = dceNotesMatch[1].charAt(0).toUpperCase() + dceNotesMatch[1].slice(1).toLowerCase();\n        results.dceSoySpread = 1.0; // Default\n        console.log('DCE from notes - Bias:', results.dceSoyBias);\n      }\n    }\n    \n    // ===== CBOT SOYBEAN OIL (FALLBACK) =====\n    const cbotRowMatch = text.match(/\\|\\s*\\*\\*CBOT Soybean Oil\\*\\*\\s*\\|([^|]+)\\|([^|]+)\\|/i);\n    if (cbotRowMatch) {\n      const spreadText = cbotRowMatch[1].trim();\n      const biasText = cbotRowMatch[2].trim();\n      \n      results.cbotSoyBias = biasText;\n      \n      // Extract spread\n      const spreadNumMatch = spreadText.match(/([+-]?[\\d.]+)%/);\n      if (spreadNumMatch) {\n        results.cbotSoySpread = parseFloat(spreadNumMatch[1]);\n      }\n      \n      console.log('CBOT Extracted - Bias:', results.cbotSoyBias, '| Spread:', results.cbotSoySpread);\n    }\n    \n    // Fallback: Look for \"-1.14%\" in detailed notes\n    if (!results.cbotSoySpread) {\n      const cbotDetailMatch = text.match(/CBOT.*?([+-]?[\\d.]+)%/i);\n      if (cbotDetailMatch) {\n        results.cbotSoySpread = parseFloat(cbotDetailMatch[1]);\n        console.log('CBOT spread from notes:', results.cbotSoySpread);\n      }\n    }\n    \n    // ===== CRUDE OIL =====\n    const crudeRowMatch = text.match(/\\|\\s*\\*\\*.*?Crude Oil\\*\\*\\s*\\|([^|]*)\\|([^|]+)\\|/i);\n    if (crudeRowMatch) {\n      results.crudeBias = crudeRowMatch[2].trim();\n      \n      const spreadMatch = crudeRowMatch[1].match(/([+-]?[\\d.]+)%/);\n      if (spreadMatch) {\n        results.crudeChange = parseFloat(spreadMatch[1]);\n      }\n      \n      console.log('Crude Extracted - Bias:', results.crudeBias, '| Change:', results.crudeChange);\n    }\n    \n    // ===== MPOB =====\n    const mpobRowMatch = text.match(/\\|\\s*\\*\\*MPOB.*?\\*\\*\\s*\\|([^|]*)\\|([^|]+)\\|/i);\n    if (mpobRowMatch) {\n      results.mpobBias = mpobRowMatch[2].trim();\n      \n      const yoyMatch = mpobRowMatch[1].match(/([+-]?[\\d.]+)%/);\n      if (yoyMatch) {\n        results.mpobYoY = parseFloat(yoyMatch[1]);\n      }\n      \n      console.log('MPOB Extracted - Bias:', results.mpobBias, '| YoY:', results.mpobYoY);\n    }\n    \n    return results;\n  }\n  \n  const parsed = extractFromMarkdown(responseText);\n  \n  console.log('=== Final Parsed Data ===');\n  console.log('DCE Soy - Bias:', parsed.dceSoyBias, '| Spread:', parsed.dceSoySpread);\n  console.log('CBOT Soy - Bias:', parsed.cbotSoyBias, '| Spread:', parsed.cbotSoySpread);\n  console.log('Crude - Bias:', parsed.crudeBias, '| Change:', parsed.crudeChange);\n  console.log('MPOB - Bias:', parsed.mpobBias, '| YoY:', parsed.mpobYoY);\n  \n  // ===== LEADER COMMODITY SELECTION (CRC4.3 PRIORITY) =====\n  let leaderCommodity = null;\n  let leaderBias = null;\n  let leaderSpread = null;\n  let historicalCorr = null;\n  let scoreImpact = 0;\n  \n  // PRIORITY 1: DCE Soybean Oil (Correlation: 0.85)\n  if (parsed.dceSoyBias && parsed.dceSoyBias !== 'Neutral') {\n    leaderCommodity = \"DCE Soybean Oil\";\n    leaderBias = parsed.dceSoyBias;\n    leaderSpread = parsed.dceSoySpread || 1.0;\n    historicalCorr = 0.85;\n    \n    // DCE ScoreImpact thresholds\n    const absSpread = Math.abs(leaderSpread);\n    if (absSpread > 2.5) scoreImpact = 0.5;\n    else if (absSpread > 1.5) scoreImpact = 0.4;\n    else if (absSpread > 0.8) scoreImpact = 0.3;\n    else scoreImpact = 0.2;\n    \n    console.log('✅ Leader: DCE Soybean Oil (Priority #1) | ScoreImpact:', scoreImpact);\n  } \n  // PRIORITY 2: CBOT Soybean Oil (Correlation: 0.77)\n  else if (parsed.cbotSoyBias && parsed.cbotSoyBias !== 'Neutral') {\n    leaderCommodity = \"CBOT Soybean Oil\";\n    leaderBias = parsed.cbotSoyBias;\n    leaderSpread = parsed.cbotSoySpread || -1.14;\n    historicalCorr = 0.77;\n    \n    // CBOT ScoreImpact thresholds\n    const absSpread = Math.abs(leaderSpread);\n    if (absSpread > 2.0) scoreImpact = 0.5;\n    else if (absSpread > 1.2) scoreImpact = 0.4;\n    else if (absSpread > 0.6) scoreImpact = 0.3;\n    \n    console.log('✅ Leader: CBOT Soybean Oil (Fallback) | ScoreImpact:', scoreImpact);\n  }\n  // PRIORITY 3: Crude Oil\n  else if (parsed.crudeBias && parsed.crudeBias !== 'Neutral' && Math.abs(parsed.crudeChange || 0) > 5) {\n    leaderCommodity = \"Crude Oil\";\n    leaderBias = parsed.crudeBias;\n    leaderSpread = parsed.crudeChange;\n    historicalCorr = 0.52;\n    \n    const absSpread = Math.abs(leaderSpread);\n    if (absSpread > 7) scoreImpact = 0.4;\n    else if (absSpread > 5) scoreImpact = 0.3;\n    \n    console.log('✅ Leader: Crude Oil | ScoreImpact:', scoreImpact);\n  } else {\n    console.log('⚠️ No strong leader commodity identified');\n  }\n  \n  // ===== BUILD OBJECTS =====\n  const externalConfluence = {\n    InterCommodity: {\n      LeaderCommodity: leaderCommodity,\n      SpreadToFCPO: leaderSpread,\n      HistoricalCorrelation: historicalCorr,\n      Bias: leaderBias,\n      Inference: leaderCommodity \n        ? `${leaderCommodity} showing ${leaderBias} bias with ${leaderSpread?.toFixed(2)}% spread (correlation: ${historicalCorr})`\n        : 'No strong directional leader commodity identified',\n      ScoreImpact: scoreImpact\n    }\n  };\n  \n  const mpobFactor = {\n    SupplyDemandBias: parsed.mpobBias || \"Neutral\",\n    YoYChangePercent: parsed.mpobYoY,\n    Inference: parsed.mpobBias && parsed.mpobBias !== 'Neutral'\n      ? `MPOB ${parsed.mpobBias}${parsed.mpobYoY ? ' with ' + parsed.mpobYoY.toFixed(1) + '% YoY change' : ' (no YoY data available)'}`\n      : 'MPOB neutral - awaiting fresh inventory data',\n    Confidence: parsed.mpobYoY ? Math.min(Math.abs(parsed.mpobYoY) / 10, 1.0) : 0.3\n  };\n  \n  console.log('=== Final External Confluence ===');\n  console.log(JSON.stringify(externalConfluence, null, 2));\n  console.log('=== Final MPOB Factor ===');\n  console.log(JSON.stringify(mpobFactor, null, 2));\n  \n  return {\n    json: {\n      ...item.json,\n      ExternalConfluence: externalConfluence,\n      MPOB_Factor: mpobFactor,\n      PerplexityRawResponse: responseText\n    },\n    binary: item.binary || {}\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        592
+      ],
+      "id": "6edd4250-bfb0-4ba4-a383-8943f291ba55",
+      "name": "Bias Extractor"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Restore Binary After HTTP Request\n// HTTP nodes drop binary data, so we fetch it from the previous node that had it\n\nconst chartBinary = $('Extract Metadata').first().binary;\n\nreturn items.map(item => {\n  return {\n    json: item.json,\n    binary: chartBinary || {}  // ✅ Restore the chart binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1328,
+        592
+      ],
+      "id": "b5f0ffdb-5adf-46aa-9923-8d1bfbd10017",
+      "name": "Restore Binary"
+    },
+    {
+      "parameters": {
+        "chatId": "1537497303",
+        "text": "=GCS Upload Failed: {{ $('CFR4.3.1').item.json.fileName }}\n----------------------------------------\n{{ $('CFR4.3.1').item.json.generatedAt }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        256
+      ],
+      "id": "fadc8b1c-f408-4eb1-9d58-585a91b11795",
+      "name": "GCS Upload Failed",
+      "webhookId": "da1cc3cd-e6f9-4088-b360-04c0066fa435",
+      "credentials": {
+        "telegramApi": {
+          "id": "dXrWCObIDjQ2JQky",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Extract chart metadata from the decoded chart data\n  const input = item.json || {};\n  \n  // Parse chart metadata if available\n  const chartMeta = input.body || input.chartMeta || {};\n  \n  // Build metadata object for Perplexity\n  const metadata = {\n    symbol: \"FCPO\",\n    chartDate: chartMeta.chartDate || input.chartDate || new Date().toISOString().slice(0,10),\n    chartTime: chartMeta.chartTime || input.chartTime || null,\n    session: null,\n    timeframe: \"15m\"\n  };\n  \n  // Determine session from time\n  if (metadata.chartTime) {\n    const hour = parseInt(metadata.chartTime.substring(0, 2));\n    metadata.session = hour < 12 ? \"Morning\" : \"Afternoon\";\n  }\n  \n  // ✅ FIX: Format as STRING, not object\n  const queryContext = `Market: ${metadata.symbol}, Date: ${metadata.chartDate}, Session: ${metadata.session || 'Unknown'}, Time: ${metadata.chartTime || 'Unknown'}`;\n  \nreturn { \n    json: {\n      metadata: metadata,\n      queryContext: queryContext\n    },\n    binary: item.binary || {}\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        592
+      ],
+      "id": "88c0db50-26c9-439c-9f9a-5bb284c987f3",
+      "name": "Extract Metadata"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Build external confluence text\n  let externalData = \"\";\n  \n  if (item.json.ExternalConfluence) {\n    const ic = item.json.ExternalConfluence.InterCommodity || {};\n    externalData += `\n\n=== EXTERNAL MARKET CONFLUENCE DATA ===\n\nInterCommodity Analysis:\n- Leader Commodity: ${ic.LeaderCommodity || \"None\"}\n- Spread to FCPO: ${ic.SpreadToFCPO || \"N/A\"}%\n- Historical Correlation: ${ic.HistoricalCorrelation || \"N/A\"}\n- Bias: ${ic.Bias || \"Neutral\"}\n- Score Impact: ${ic.ScoreImpact || 0}\n- Inference: ${ic.Inference || \"No data\"}`;\n  }\n  \n  if (item.json.MPOB_Factor) {\n    const mpob = item.json.MPOB_Factor;\n    externalData += `\n\nMPOB Supply-Demand Factor:\n- Bias: ${mpob.SupplyDemandBias || \"Neutral\"}\n- YoY Change: ${mpob.YoYChangePercent || \"N/A\"}%\n- Confidence: ${mpob.Confidence || 0}\n- Inference: ${mpob.Inference || \"No data\"}`;\n  }\n  \n  // Add instruction if we have external data\n  if (externalData) {\n    externalData += `\n\n⚠️ CRITICAL INSTRUCTION: Integrate the above external confluence data into your directional bias assessment. The LeaderCommodity bias and ScoreImpact should influence your analysis. Higher ScoreImpact (0.3-0.5) indicates stronger correlation signal.`;\n  }\n  \n  // Create enhanced prompt\n  const enhancedPrompt = item.json.prompt + externalData;\n  \n  return {\n    json: {\n      ...item.json,\n      prompt: enhancedPrompt,\n      originalPrompt: item.json.prompt,  // Keep original for reference\n      hasExternalData: !!externalData\n    },\n    binary: item.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        352
+      ],
+      "id": "27760f3f-9494-4d17-8377-52d72369e9ea",
+      "name": "Enhance Prompt with External Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Diagnostic logging\n  console.log('=== Format External Data Debug ===');\n  console.log('item.json keys:', Object.keys(item.json));\n  console.log('ExternalConfluence exists?', !!item.json.ExternalConfluence);\n  console.log('MPOB_Factor exists?', !!item.json.MPOB_Factor);\n  \n  if (item.json.ExternalConfluence) {\n    console.log('ExternalConfluence:', JSON.stringify(item.json.ExternalConfluence, null, 2));\n  }\n  \n  if (item.json.MPOB_Factor) {\n    console.log('MPOB_Factor:', JSON.stringify(item.json.MPOB_Factor, null, 2));\n  }\n  \n  return {\n    json: {\n      provider: \"ExternalConfluence\",\n      externalData: {\n        ExternalConfluence: item.json.ExternalConfluence,\n        MPOB_Factor: item.json.MPOB_Factor\n      }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        816
+      ],
+      "id": "8a22e481-5b60-45de-a89a-131b4ed1ace4",
+      "name": "Format External Data"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "b0af221b-1413-4c56-b710-2496282a37c3",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1840,
+        368
+      ],
+      "id": "9c690618-1a4a-4db6-85c6-f0687b5e22fc",
+      "name": "Webhook1",
+      "webhookId": "b0af221b-1413-4c56-b710-2496282a37c3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CFR4.3 - Updated for SVP Analyzer 4.3 with Dynamic Model Detection\n// Triple SVP Analysis Report Generator\n\n// Get all 4 inputs from Merge node\nconst items = $input.all();\n\nif (items.length < 4) {\n    throw new Error(`Expected 4 inputs from Merge node, but received ${items.length}.`);\n}\n\nconst claudeItem = items[0];\nconst openAIItem = items[1];\nconst geminiItem = items[2];\nconst externalItem = items[3];  // NEW\n\n// Extract external data\nconst externalData = externalItem.json.externalData || {};\nconsole.log('External Confluence Available:', !!externalData.ExternalConfluence);\nconsole.log('MPOB Factor Available:', !!externalData.MPOB_Factor);\n\n// ===== DYNAMIC MODEL NAME EXTRACTION =====\nfunction extractModelName(data, fallbackName) {\n    console.log(`\\n=== Extracting Model Name for ${fallbackName} ===`);\n    \n    let modelName = fallbackName;\n    \n    try {\n        // OpenRouter/OpenAI HTTP format: response.model\n        if (data.model && typeof data.model === 'string') {\n            modelName = data.model;\n            console.log(`Found model in data.model: ${modelName}`);\n        }\n        // Gemini HTTP format: response.modelVersion or metadata\n        else if (data.modelVersion) {\n            modelName = data.modelVersion;\n            console.log(`Found model in data.modelVersion: ${modelName}`);\n        }\n        // Claude format: might be in usage_metadata or model field\n        else if (data.usage_metadata && data.usage_metadata.model) {\n            modelName = data.usage_metadata.model;\n            console.log(`Found model in usage_metadata: ${modelName}`);\n        }\n        // Check headers if available\n        else if (data.headers && data.headers['x-model-id']) {\n            modelName = data.headers['x-model-id'];\n            console.log(`Found model in headers: ${modelName}`);\n        }\n        else {\n            console.log(`No model field found, using fallback: ${fallbackName}`);\n        }\n    } catch (e) {\n        console.log(`Error extracting model name: ${e.message}`);\n    }\n    \n    const cleanModelName = formatModelName(modelName);\n    console.log(`Final display name: ${cleanModelName}`);\n    \n    return cleanModelName;\n}\n\nfunction formatModelName(rawName) {\n    // Remove common prefixes\n    let cleaned = rawName\n        .replace(/^(openai|anthropic|google|qwen|meta-llama|deepseek)\\//, '')\n        .replace(/^models\\//, '');\n    \n    // Format common model names\n    const modelMappings = {\n        'gpt-4o': 'GPT-4o',\n        'gpt-4-turbo': 'GPT-4 Turbo',\n        'claude-3-5-sonnet': 'Claude 3.5 Sonnet',\n        'claude-sonnet-4-5': 'Claude Sonnet 4.5',\n        'claude-haiku-4-5': 'Claude Haiku 4.5',\n        'gemini-2.5-pro': 'Gemini 2.5 Pro',\n        'gemini-pro-vision': 'Gemini Pro Vision'\n    };\n    \n    // Check if we have a direct mapping\n    for (const key in modelMappings) {\n        if (cleaned.includes(key)) {\n            return modelMappings[key];\n        }\n    }\n    \n    // Otherwise, capitalize and clean up\n    return cleaned\n        .split('-')\n        .map(word => word.charAt(0).toUpperCase() + word.slice(1))\n        .join(' ')\n        .replace(/vl/i, 'VL')\n        .replace(/\\d+b/i, match => match.toUpperCase());\n}\n\n// ===== PARSER ADAPTER FOR ANDROMEDA ALPHA COMPATIBILITY =====\nfunction normalizePrincipleReview(principleReview) {\n    if (!principleReview || typeof principleReview !== 'object') return {};\n    const normalized = {};\n    Object.keys(principleReview).forEach(principleKey => {\n        const strategies = principleReview[principleKey];\n        if (Array.isArray(strategies)) {\n            normalized[principleKey] = strategies;\n        } else if (strategies && typeof strategies === 'object') {\n            normalized[principleKey] = Object.keys(strategies).map(strategyName => ({\n                Strategy: strategyName,\n                ...strategies[strategyName]\n            }));\n        } else {\n            normalized[principleKey] = [];\n        }\n    });\n    return normalized;\n}\n\n// Extract model names from each provider\nconst provider1Name = extractModelName(claudeItem.json, 'Claude');\nconst provider2Name = extractModelName(openAIItem.json, 'OpenAI');\nconst provider3Name = extractModelName(geminiItem.json, 'Gemini');\n\nconsole.log(`\\n=== Final Provider Names ===`);\nconsole.log(`Provider 1: ${provider1Name}`);\nconsole.log(`Provider 2: ${provider2Name}`);\nconsole.log(`Provider 3: ${provider3Name}`);\n\n// Extract Base64 chart image - check both binary and JSON locations\nlet chartImageSrc = '';\nconsole.log('=== Chart Extraction Debug ===');\n\n// First try: binary.chart.data (standard binary location)\nif (claudeItem.binary && claudeItem.binary.chart && claudeItem.binary.chart.data) {\n    try {\n        const chartBuffer = Buffer.isBuffer(claudeItem.binary.chart.data) \n            ? claudeItem.binary.chart.data \n            : Buffer.from(claudeItem.binary.chart.data);\n        chartImageSrc = `data:image/png;base64,${chartBuffer.toString('base64')}`;\n        console.log(`Chart from binary.chart: ${chartBuffer.length} bytes`);\n    } catch (e) {\n        console.log(`Error processing binary chart: ${e.message}`);\n    }\n}\n\n// Second try: json.chartBase64 (from Preserve Chart nodes)\nif (!chartImageSrc && claudeItem.json && claudeItem.json.chartBase64) {\n    try {\n        chartImageSrc = `data:image/png;base64,${claudeItem.json.chartBase64}`;\n        console.log(`Chart from json.chartBase64: ${claudeItem.json.chartBase64.length} chars`);\n    } catch (e) {\n        console.log(`Error processing json chartBase64: ${e.message}`);\n    }\n}\n\nif (!chartImageSrc) {\n    console.log(`No chart found in either location`);\n    console.log('Binary keys:', Object.keys(claudeItem.binary || {}));\n    console.log('Has chartBase64 in JSON:', !!(claudeItem.json && claudeItem.json.chartBase64));\n}\n\nconsole.log('Final chartImageSrc length:', chartImageSrc.length);\n\n// Parse responses from each AI model's item and build the data structure for rendering\nconst reportData = [\n    { provider: provider1Name, ...parseAIResponse(claudeItem.json, provider1Name) },\n    { provider: provider2Name, ...parseAIResponse(openAIItem.json, provider2Name) },\n    { provider: provider3Name, ...parseAIResponse(geminiItem.json, provider3Name) }\n];\n\nfunction parseAIResponse(data, modelName) {\n    console.log(`\\n=== Parsing ${modelName} ===`);\n    console.log(`Data type: ${typeof data}`);\n    console.log(`Data keys:`, Object.keys(data || {}).slice(0, 10));\n    \n    let parsed = {};\n    try {\n        let jsonString;\n        \n        // ===== GEMINI PARSING PRIORITY (MUST BE FIRST) =====\n        if ((modelName.includes('Gemini') || modelName.includes('gemini')) && data) {\n            console.log(`${modelName}: Entering Gemini-specific parsing`);\n            \n            // Path 1: Gemini HTTP Request format (most common)\n            if (data.candidates && Array.isArray(data.candidates) && data.candidates[0]) {\n                const candidate = data.candidates[0];\n                console.log(`${modelName}: Found candidates array`);\n                \n                if (candidate.content && candidate.content.parts && Array.isArray(candidate.content.parts)) {\n                    jsonString = candidate.content.parts[0] && candidate.content.parts[0].text;\n                    console.log(`${modelName}: Extracted from candidates[0].content.parts[0].text (length: ${jsonString ? jsonString.length : 0})`);\n                }\n            }\n            \n            // Path 2: LangChain Gemini node format\n            else if (data.content && data.content.parts && data.content.parts[0] && data.content.parts[0].text) {\n                jsonString = data.content.parts[0].text;\n                console.log(`${modelName}: Extracted from content.parts[0].text (LangChain format)`);\n            }\n            \n            // Path 3: Already parsed JSON object\n            else if (data['Chart Metadata']) {\n                console.log(`${modelName}: Direct JSON object detected`);\n                parsed = data;\n            }\n            \n            // Path 4: Simplified LangChain output\n            else if (data.text) {\n                jsonString = data.text;\n                console.log(`${modelName}: Extracted from text field`);\n            }\n            \n            // Path 5: Response wrapper\n            else if (data.response && data.response.text) {\n                jsonString = data.response.text;\n                console.log(`${modelName}: Extracted from response.text`);\n            }\n        }\n        \n        // ===== OPENROUTER/OPENAI PARSING =====\n        if (!jsonString && !parsed['Chart Metadata']) {\n            \n            // OpenRouter/OpenAI HTTP format: choices[0].message.content\n            if (data && data.choices && Array.isArray(data.choices) && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {\n                console.log(`${modelName}: OpenRouter/OpenAI format detected`);\n                jsonString = data.choices[0].message.content;\n            }\n            \n            // Claude format\n            else if (data && data.content && Array.isArray(data.content) && data.content[0] && data.content[0].text) {\n                console.log(`${modelName}: Claude format detected`);\n                jsonString = data.content[0].text;\n            }\n            \n            // Simplified n8n output (message.content)\n            else if (data && data.message && typeof data.message.content === 'string') {\n                console.log(`${modelName}: message.content detected`);\n                jsonString = data.message.content;\n            }\n            \n            // Direct JSON object\n            else if (data && typeof data === 'object' && data['Chart Metadata']) {\n                console.log(`${modelName}: Direct JSON object detected`);\n                parsed = data;\n            }\n            \n            // Last resort: stringify\n            else {\n                console.log(`${modelName}: Unknown format, trying stringify`);\n                jsonString = JSON.stringify(data);\n            }\n        }\n\n        // ===== PARSE JSON STRING IF WE HAVE ONE =====\n        if (jsonString && !parsed['Chart Metadata']) {\n            console.log(`${modelName}: Attempting to parse JSON string (length: ${jsonString.length})`);\n            console.log(`${modelName}: First 500 chars:`, jsonString.substring(0, 500));\n            \n            // Clean markdown fences and parse\n            const cleaned = jsonString\n                .replace(/```json\\n?/g, '')\n                .replace(/```\\n?/g, '')\n                .trim();\n            \n            parsed = JSON.parse(cleaned);\n            console.log(`${modelName}: Successfully parsed from string`);\n        }\n        \n        // ===== FINAL VERIFICATION =====\n        if (Object.keys(parsed).length > 0) {\n            console.log(`${modelName}: Final parsed object has ${Object.keys(parsed).length} keys`);\n            console.log(`${modelName}: Has Chart Metadata: ${!!parsed['Chart Metadata']}`);\n            console.log(`${modelName}: Has Execution Framework: ${!!parsed['Execution Framework - Gatekeeper']}`);\n        } else {\n            console.log(`${modelName}: WARNING - Parsed object is empty!`);\n        }\n        \n    } catch (e) {\n        console.log(`${modelName}: Failed to parse - ${e.message}`);\n        console.log(`${modelName}: Error stack:`, e.stack);\n        console.log(`Data sample:`, JSON.stringify(data).substring(0, 1000));\n    }\n\n    // Extract fields from parsed object\n    const meta = parsed['Chart Metadata'] || {};\n    const gate = parsed['Execution Framework - Gatekeeper'] || {};\n    const zones = gate['Trading Zones'] || {};\n    const sel = parsed['Selection & Conflict Resolution'] || {};\n    const exec = parsed['Execution Plan'] || {};\n    const princ = normalizePrincipleReview(parsed['Principle Section Review'] || {});\n\n    return {\n        chartTimestamp: [meta['Chart Date'], meta['Chart Time']].filter(Boolean).join(', ') || 'â€”',\n        marketState: gate['Market State'] || 'â€”',\n        directionalBias: (gate['Directional Bias'] && gate['Directional Bias'].Direction) || 'â€”',\n        vwap: (gate['VWAP'] && gate['VWAP'].Value) !== undefined ? gate['VWAP'].Value : 'â€”',\n        vah: zones.VAH !== undefined ? zones.VAH : 'â€”',\n        poc: zones.POC !== undefined ? zones.POC : 'â€”',\n        val: zones.VAL !== undefined ? zones.VAL : 'â€”',\n        summary: parsed.summary || 'â€”',\n        selection: (sel.SelectedStrategies && sel.SelectedStrategies[0] && sel.SelectedStrategies[0].Strategy || 'â€”') + (sel.SelectionRationale ? '\\n\\n' + sel.SelectionRationale : ''),\n        executionPlan: exec.Strategy ? `Selected Strategy: ${exec.Strategy}\\n\\nDirection: ${exec.Direction || 'â€”'}\\nEntry: ${exec.Entry || 'â€”'}\\nStop Loss: ${exec.StopLoss || 'â€”'}\\nTargets: ${exec.Targets || 'â€”'}\\nRisk/Reward: ${exec.RiskReward || 'â€”'}` : 'None',\n        principleSectionHTML: buildPrincipleHTML(princ, modelName)\n    };\n}\n\nfunction buildPrincipleHTML(princ, provider) {\n    if (!princ) return '<p class=\"text-slate-500 dark:text-slate-400 text-base\">No strategy data</p>';\n\n    const cats = [\n        { k: 'Trending', l: 'Trending Strategies', s: ['VPB', 'ORB'] },\n        { k: 'Ranging', l: 'Ranging Strategies', s: ['VFR'] },\n        { k: 'Reversal', l: 'Reversal Strategies', s: ['RV', 'VSR'] }\n    ];\n\n    let h = '<div class=\"space-y-6\">';\n    for (let i = 0; i < cats.length; i++) {\n        const cat = cats[i];\n        const strats = princ[cat.k] || [];\n        if (!strats.length) continue;\n\n        h += '<div><h4 class=\"text-sm font-bold mb-3 text-slate-700 dark:text-slate-300\">' + cat.l + '</h4>';\n\n        h += '<div class=\"overflow-x-auto\"><table class=\"w-full text-sm border-collapse\" style=\"table-layout: fixed;\"><thead><tr class=\"bg-slate-100 dark:bg-slate-800\">';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 11%;\">Strategy</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 9%;\">Trigger</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 9%;\">C-Score</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 18%;\">C-Factor</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 11%;\">Quality</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 8%;\">Time</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 10%;\">Override</th>';\n        h += '<th class=\"px-3 py-2 text-left border border-slate-300 dark:border-slate-600\" style=\"width: 24%;\">Notes</th>';\n        h += '</tr></thead><tbody>';\n        \n        for (let j = 0; j < strats.length; j++) {\n            const s = strats[j];\n            const rc = j % 2 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800';\n            const qc = s.SetupQuality === 'High Confidence' ? 'text-green-600 dark:text-green-400 font-semibold' :\n                s.SetupQuality === 'Potential' ? 'text-amber-600 dark:text-amber-400' :\n                    'text-red-600 dark:text-red-400';\n            const tc = s.TriggerScore === 2 ? 'text-green-600 dark:text-green-400 font-semibold' :\n                s.TriggerScore === 1 ? 'text-amber-600 dark:text-amber-400' :\n                    'text-red-600 dark:text-red-400';\n\n            h += '<tr class=\"' + rc + '\">';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600 font-medium\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 11%;\">' + (s.Strategy || 'â€”') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600 ' + tc + '\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 9%;\">' + (s.TriggerScore !== undefined ? s.TriggerScore : 'â€”') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 9%;\">' + (s.ConfluenceScore || 'â€”') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600 text-xs\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 18%;\">' + (s.ConfluenceFactors && s.ConfluenceFactors.join ? s.ConfluenceFactors.join(', ') : 'â€”') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600 ' + qc + '\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 11%;\">' + (s.SetupQuality || 'â€”') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 8%;\">' + (s.TimeWindowValid ? 'Valid' : 'Invalid') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 10%;\">' + (s.VisualOverride ? 'Yes' : 'No') + '</td>';\n            h += '<td class=\"px-3 py-2 border border-slate-300 dark:border-slate-600 text-xs\" style=\"word-wrap: break-word; overflow-wrap: break-word; width: 24%;\">' + (s.Notes || 'â€”') + '</td>';\n            h += '</tr>';\n        }\n\n        h += '</tbody></table></div></div>';\n    }\n\n    return h + '</div>';\n}\n\nconst summaryView = renderSummaryView(reportData);\nconst chartView = renderChartView(chartImageSrc);\nconst rowView = renderRowView(reportData);\nconst externalView = renderExternalConfluenceSection(externalData);\n\n\nconst html = `<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0\">\n    <title>Triple SVP Analysis - CFR 4.3</title>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n    <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap\" rel=\"stylesheet\">\n    <style>\n        * { box-sizing: border-box; }\n        body {\n            font-family: 'Inter', system-ui, -apple-system, sans-serif;\n            transition: background-color .3s ease, color .3s ease;\n        }\n        body.dark {\n            background: linear-gradient(to bottom, #0f172a 0%, #1e293b 100%);\n            color: #e2e8f0;\n        }\n        body:not(.dark) {\n            background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);\n            color: #1e293b;\n        }\n        .gradient-header {\n            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);\n        }\n        .card {\n            backdrop-filter: blur(10px);\n            transition: all 0.3s ease;\n        }\n        .card:hover {\n            transform: translateY(-2px);\n        }\n        body.dark .card {\n            background: rgba(30, 41, 59, 0.8);\n            border: 1px solid rgba(148, 163, 184, 0.1);\n        }\n        body:not(.dark) .card {\n            background: rgba(255, 255, 255, 0.9);\n            border: 1px solid rgba(226, 232, 240, 0.5);\n        }\n        .border-claude { border-top: 4px solid #9b87f5; }\n        .border-openai { border-top: 4px solid #10b981; }\n        .border-gemini { border-top: 4px solid #3b82f6; }\n        \n        .chart-container {\n            max-width: 95%;\n            margin: 0 auto;\n        }\n        .chart-container img {\n            max-width: 100%;\n            max-height: 85vh;\n            width: auto;\n            height: auto;\n            object-fit: contain;\n        }\n        \n        .tab-button {\n            font-size: 1.125rem !important;\n            font-weight: 600;\n        }\n    </style>\n</head>\n<body class=\"min-h-screen p-4 md:p-8\">\n    <div class=\"max-w-7xl mx-auto\">\n        <div class=\"gradient-header rounded-2xl shadow-2xl p-6 mb-8 text-white\">\n            <h1 class=\"text-2xl md:text-3xl font-black mb-2\">Triple SVP Analysis Report</h1>\n            <p class=\"text-sm md:text-base opacity-90\">CFR 4.3 Framework - Auto-compiled from ${provider1Name}, ${provider2Name}, and ${provider3Name} reports.</p>\n        </div>\n\n        <div class=\"card rounded-2xl shadow-xl p-6 mb-8\">\n            <div class=\"flex items-center justify-between mb-6\">\n                <div class=\"flex gap-3\">\n                    <button onclick=\"showTab('summary')\" id=\"tab-summary\" class=\"tab-button px-6 py-3 rounded-lg bg-emerald-500 text-white transition-all\">Summary View</button>\n                    <button onclick=\"showTab('chart')\" id=\"tab-chart\" class=\"tab-button px-6 py-3 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-300 dark:hover:bg-slate-600\">Chart View</button>\n                    <button onclick=\"showTab('stacked')\" id=\"tab-stacked\" class=\"tab-button px-6 py-3 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-300 dark:hover:bg-slate-600\">Stacked Outline View</button>\n                    <button onclick=\"showTab('external')\" id=\"tab-external\" class=\"tab-button px-6 py-3 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-300 dark:hover:bg-slate-600\">Market Confluence</button>\n\n                </div>\n                <button onclick=\"toggleDark()\" class=\"px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all\">\n                    <span class=\"dark-only hidden\">🌙</span>\n                    <span class=\"light-only\">☀️</span>\n                </button>\n            </div>\n\n            <div id=\"content-summary\" class=\"tab-content\">${summaryView}</div>\n            <div id=\"content-chart\" class=\"tab-content hidden\">${chartView}</div>\n            <div id=\"content-stacked\" class=\"tab-content hidden\">${rowView}</div>\n            <div id=\"content-external\" class=\"tab-content hidden\">${externalView}</div>\n        </div>\n\n\n        \n    </div>\n\n    <script>\n        function showTab(name) {\n                ['summary','chart','stacked','external'].forEach(function(t) {\n    \n                const btn = document.getElementById('tab-' + t);\n                const content = document.getElementById('content-' + t);\n                if (t === name) {\n                    btn.classList.remove('bg-slate-200','dark:bg-slate-700','text-slate-700','dark:text-slate-300');\n                    btn.classList.add('bg-emerald-500','text-white');\n                    content.classList.remove('hidden');\n                } else {\n                    btn.classList.add('bg-slate-200','dark:bg-slate-700','text-slate-700','dark:text-slate-300');\n                    btn.classList.remove('bg-emerald-500','text-white');\n                    content.classList.add('hidden');\n                }\n            });\n        }\n\n        function toggleDark() {\n            document.body.classList.toggle('dark');\n            document.querySelectorAll('.dark-only').forEach(function(el) { el.classList.toggle('hidden'); });\n            document.querySelectorAll('.light-only').forEach(function(el) { el.classList.toggle('hidden'); });\n        }\n\n        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {\n            document.body.classList.add('dark');\n            document.querySelectorAll('.dark-only').forEach(function(el) { el.classList.remove('hidden'); });\n            document.querySelectorAll('.light-only').forEach(function(el) { el.classList.add('hidden'); });\n        }\n    </script>\n</body>\n</html>`;\nfunction renderExternalConfluenceSection(externalData) {\n    // Return empty if no data\n    if (!externalData || (!externalData.ExternalConfluence && !externalData.MPOB_Factor)) {\n        return '';\n    }\n    \n    const ic = (externalData.ExternalConfluence && externalData.ExternalConfluence.InterCommodity) || {};\n    const mpob = externalData.MPOB_Factor || {};\n    \n    let html = '<div class=\"card rounded-2xl shadow-xl p-6 mb-8\">';\n    html += '<h2 class=\"text-2xl font-bold mb-4 text-slate-800 dark:text-slate-200 gradient-header text-white p-4 rounded-xl\">External Market Confluence</h2>';\n    \n    html += '<div class=\"space-y-6\">';\n    \n    // InterCommodity Section\n    if (ic.LeaderCommodity) {\n        const biasColor = ic.Bias === 'Bullish' ? 'text-green-600 dark:text-green-400' : \n                         ic.Bias === 'Bearish' ? 'text-red-600 dark:text-red-400' : \n                         'text-gray-600 dark:text-gray-400';\n        \n        html += '<div class=\"p-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl border-l-4 border-blue-500\">';\n        html += '<h3 class=\"text-xl font-bold mb-4 text-blue-900 dark:text-blue-300\">InterCommodity Analysis</h3>';\n        html += '<div class=\"grid grid-cols-1 md:grid-cols-2 gap-4 text-base\">';\n        \n        html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n        html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">Leader Commodity:</span>';\n        html += '<span class=\"font-bold text-slate-900 dark:text-slate-100\">' + ic.LeaderCommodity + '</span>';\n        html += '</div>';\n        \n        html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n        html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">Directional Bias:</span>';\n        html += '<span class=\"font-bold text-lg ' + biasColor + '\">' + ic.Bias + '</span>';\n        html += '</div>';\n        \n        html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n        html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">Spread to FCPO:</span>';\n        html += '<span class=\"font-bold text-slate-900 dark:text-slate-100\">' + (ic.SpreadToFCPO || 'N/A') + '%</span>';\n        html += '</div>';\n                \n        html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n        html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">Score Impact:</span>';\n        html += '<span class=\"font-bold text-amber-600 dark:text-amber-400\">' + (ic.ScoreImpact || 0) + '</span>';\n        html += '</div>';\n        \n        html += '</div></div>';\n    }\n    \n    // MPOB Section\n    if (mpob.SupplyDemandBias) {\n        const mpobBiasColor = mpob.SupplyDemandBias === 'Bullish' ? 'text-green-600 dark:text-green-400' : \n                             mpob.SupplyDemandBias === 'Bearish' ? 'text-red-600 dark:text-red-400' : \n                             'text-gray-600 dark:text-gray-400';\n        \n        html += '<div class=\"p-6 bg-green-50 dark:bg-green-900/20 rounded-xl border-l-4 border-green-500\">';\n        html += '<h3 class=\"text-xl font-bold mb-4 text-green-900 dark:text-green-300\">MPOB Supply-Demand Factor</h3>';\n        html += '<div class=\"grid grid-cols-1 md:grid-cols-2 gap-4 text-base\">';\n        \n        html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n        html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">Supply-Demand Bias:</span>';\n        html += '<span class=\"font-bold text-lg ' + mpobBiasColor + '\">' + mpob.SupplyDemandBias + '</span>';\n        html += '</div>';\n        \n        if (mpob.YoYChangePercent !== null && mpob.YoYChangePercent !== undefined) {\n            html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n            html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">YoY Change:</span>';\n            html += '<span class=\"font-bold text-slate-900 dark:text-slate-100\">' + mpob.YoYChangePercent.toFixed(1) + '%</span>';\n            html += '</div>';\n        }\n        \n        if (mpob.Confidence !== null && mpob.Confidence !== undefined) {\n            html += '<div class=\"flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg\">';\n            html += '<span class=\"font-semibold text-slate-600 dark:text-slate-400\">Confidence Level:</span>';\n            html += '<span class=\"font-bold text-blue-600 dark:text-blue-400\">' + (mpob.Confidence * 100).toFixed(0) + '%</span>';\n            html += '</div>';\n        }\n                \n        html += '</div></div>';\n    }\n    \n    html += '</div></div>';\n    return html;\n}\n\nfunction renderSummaryView(data) {\n    const cols = data.length + 1;\n\n    let h = '<div class=\"overflow-x-auto\"><table class=\"w-full border-collapse text-base\" style=\"table-layout: fixed;\"><thead><tr class=\"bg-slate-200 dark:bg-slate-700\">';\n    h += '<th class=\"px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-300\" style=\"width: 12%;\">FIELD</th>';\n\n    const providerWidth = 88 / data.length;\n    for (let i = 0; i < data.length; i++) {\n        h += '<th class=\"px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-300\" style=\"width: ' + providerWidth + '%;\">' + data[i].provider + '</th>';\n    }\n    h += '</tr></thead><tbody>';\n\n    const fields = [\n        { k: 'chartTimestamp', l: 'Chart Timestamp' },\n        { k: 'marketState', l: 'Market State' },\n        { k: 'directionalBias', l: 'Directional Bias' },\n        { k: 'vwap', l: 'VWAP' },\n        { k: 'vah', l: 'VAH' },\n        { k: 'val', l: 'VAL' },\n        { k: 'poc', l: 'POC' }\n    ];\n\n    for (let i = 0; i < fields.length; i++) {\n        const f = fields[i];\n        const rc = i % 2 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800';\n        const vals = data.map(function (d) { return String(d[f.k]); });\n        const uniq = [];\n        for (let j = 0; j < vals.length; j++) {\n            if (vals[j] !== 'â€”' && uniq.indexOf(vals[j]) === -1) {\n                uniq.push(vals[j]);\n            }\n        }\n        const dis = uniq.length > 1;\n        const agr = uniq.length === 1 && uniq[0] !== 'â€”';\n\n        const bc = dis ? 'border-l border-amber-500 bg-amber-50 dark:bg-amber-900/10' :\n            agr ? 'border-l border-green-500' : '';\n        const fieldText = 'text-base font-medium text-slate-700 dark:text-slate-300';\n        const valueText = 'text-lg text-slate-900 dark:text-slate-100';\n\n        h += '<tr class=\"' + rc + ' hover:bg-slate-100 dark:hover:bg-slate-700/50\">';\n        h += '<td class=\"px-4 py-3 ' + fieldText + ' border-r border-slate-300 dark:border-slate-600\">' + f.l + '</td>';\n        for (let j = 0; j < data.length; j++) {\n            h += '<td class=\"px-4 py-3 ' + valueText + ' ' + bc + '\">' + data[j][f.k] + '</td>';\n        }\n        h += '</tr>';\n    }\n\n    h += '<tr class=\"bg-slate-200 dark:bg-slate-700\"><td colspan=\"' + cols + '\" class=\"h-1 p-0\"></td></tr>';\n\n    h += '<tr class=\"bg-slate-100 dark:bg-slate-800\"><td colspan=\"' + cols + '\" class=\"px-4 py-3 text-base font-bold text-sky-700 dark:text-sky-300\">Analysis & Rationale</td></tr>';\n\n    const summaryFields = [{ k: 'summary', l: 'Executive Summary' }, { k: 'selection', l: 'Selected Strategy' }];\n    for (let i = 0; i < summaryFields.length; i++) {\n        const f = summaryFields[i];\n        const rc = i % 2 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800';\n        h += '<tr class=\"' + rc + ' align-top\"><td class=\"px-4 py-3 text-base font-semibold border-r border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300\">' + f.l + '</td>';\n        for (let j = 0; j < data.length; j++) {\n            h += '<td class=\"px-4 py-3 text-base text-slate-800 dark:text-slate-200 border-r border-slate-300 dark:border-slate-600\"><pre class=\"whitespace-pre-wrap font-sans text-base\">' + data[j][f.k] + '</pre></td>';\n        }\n        h += '</tr>';\n    }\n\n    h += '<tr><td colspan=\"' + cols + '\" class=\"p-4 bg-slate-100 dark:bg-slate-800/50 space-y-4\">';\n\n    for (let i = 0; i < data.length; i++) {\n        const d = data[i];\n        h += '<details class=\"rounded-xl overflow-hidden shadow-md bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700\">';\n        h += '<summary class=\"font-bold cursor-pointer p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-600 text-lg text-slate-900 dark:text-slate-100\">' + d.provider + ' - Strategy Analysis</summary>';\n        h += '<div class=\"p-4\">' + d.principleSectionHTML + '</div></details>';\n    }\n\n    h += '</td></tr>';\n\n    h += '<tr class=\"bg-slate-100 dark:bg-slate-800\"><td colspan=\"' + cols + '\" class=\"px-4 py-4 text-base font-bold text-sky-700 dark:text-sky-300 border-t-8 border-slate-300 dark:border-slate-600\">Execution Plan</td></tr>';\n    h += '<tr><td colspan=\"' + cols + '\" class=\"p-0\"><div class=\"grid grid-cols-1 md:grid-cols-3\">';\n\n    for (let i = 0; i < data.length; i++) {\n        const d = data[i];\n        const br = i < data.length - 1 ? 'md:border-r' : '';\n        h += '<div class=\"p-4 text-base ' + br + ' border-b md:border-b-0 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900\"><h4 class=\"font-extrabold text-xl mb-2 text-sky-700 dark:text-sky-300\">' + d.provider + '</h4><div class=\"text-base text-slate-600 dark:text-slate-400\">' + d.executionPlan + '</div></div>';\n    }\n\n    return h + '</div></td></tr></tbody></table></div>';\n}\n\nfunction renderChartView(src) {\n    if (!src) {\n        return '<div class=\"flex flex-col items-center justify-center p-12 text-center bg-slate-50 dark:bg-slate-900/50 rounded-xl\"><svg class=\"w-24 h-24 text-slate-400 dark:text-slate-600 mb-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\"></path></svg><h3 class=\"text-xl font-semibold text-slate-700 dark:text-slate-400 mb-2\">Chart Not Available</h3><p class=\"text-base text-slate-600 dark:text-slate-500\">Check that chartBase64 exists</p></div>';\n    }\n    return '<div class=\"flex justify-center items-center p-6 bg-slate-50 dark:bg-slate-900/50 rounded-xl chart-container\"><img src=\"' + src + '\" alt=\"Chart\" class=\"rounded-xl shadow-2xl ring-4 ring-slate-200 dark:ring-slate-700\" style=\"max-width:100%;max-height:85vh;height:auto;width:auto;object-fit:contain;\"/></div>';\n}\n\nfunction renderRowView(data) {\n    const ps = { 'Claude': 'border-claude', 'OpenAI': 'border-openai', 'Gemini': 'border-gemini' };\n    let h = '<div class=\"space-y-8\">';\n    for (let i = 0; i < data.length; i++) {\n        const d = data[i];\n        let bc = ps[d.provider];\n        if (!bc) {\n            if (d.provider.includes('Claude')) {\n                bc = 'border-claude';\n            } else if (d.provider.includes('GPT') || d.provider.includes('OpenAI')) {\n                bc = 'border-openai';\n            } else if (d.provider.includes('Gemini')) {\n                bc = 'border-gemini';\n            } else {\n                bc = 'border-gray-500';\n            }\n        }\n\n        h += '<div class=\"rounded-xl overflow-hidden shadow-xl bg-white dark:bg-slate-900 ring-2 ring-slate-200 dark:ring-slate-800 ' + bc + '\">';\n        h += '<div class=\"bg-slate-100 dark:bg-slate-800 p-4\"><h3 class=\"text-2xl font-bold text-slate-800 dark:text-slate-200\">' + (i + 1) + '. ' + d.provider + '</h3></div>';\n        h += '<div class=\"p-6 space-y-6\">';\n\n        h += '<div class=\"mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500\"><h4 class=\"font-bold text-blue-900 dark:text-blue-300 mb-2 text-lg\">Executive Summary</h4><p class=\"text-slate-700 dark:text-slate-300 text-base leading-relaxed\">' + d.summary + '</p></div>';\n\n        h += '<details class=\"mt-4\"><summary class=\"cursor-pointer font-bold text-slate-700 dark:text-slate-300 text-lg p-4 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700\">Market Data</summary><div class=\"mt-4 p-4 space-y-3\">';\n        \n        const items = [\n            { l: 'Chart Timestamp', v: d.chartTimestamp },\n            { l: 'Market State', v: d.marketState },\n            { l: 'Directional Bias', v: d.directionalBias },\n            { l: 'VWAP', v: d.vwap },\n            { l: 'VAH', v: d.vah },\n            { l: 'VAL', v: d.val },\n            { l: 'POC', v: d.poc }\n        ];\n\n        for (let j = 0; j < items.length; j++) {\n            const item = items[j];\n            h += '<div class=\"flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700\"><span class=\"font-semibold text-slate-600 dark:text-slate-400 text-base\">' + item.l + '</span><span class=\"text-slate-900 dark:text-slate-100 font-medium text-lg\">' + item.v + '</span></div>';\n        }\n        h += '</div></details>';\n\n        h += '<details class=\"mt-4\"><summary class=\"cursor-pointer font-bold text-slate-700 dark:text-slate-300 text-lg p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 border-l-4 border-purple-500\">Selected Strategy</summary><div class=\"mt-4 p-4\"><pre class=\"text-slate-700 dark:text-slate-300 text-base whitespace-pre-wrap font-sans\">' + d.selection + '</pre></div></details>';\n        \n        h += '<details class=\"mt-4\"><summary class=\"cursor-pointer font-bold text-slate-700 dark:text-slate-300 text-lg p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 border-l-4 border-green-500\">Execution Plan</summary><div class=\"mt-4 p-4\"><pre class=\"text-slate-700 dark:text-slate-300 text-base whitespace-pre-wrap font-sans\">' + d.executionPlan + '</pre></div></details>';\n        \n        h += '<details class=\"mt-4\"><summary class=\"cursor-pointer font-bold text-slate-700 dark:text-slate-300 text-lg p-4 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700\">Strategy Analysis Details</summary><div class=\"mt-4 p-4\">' + d.principleSectionHTML + '</div></details>';\n        \n        h += '</div></div>';\n    }\n\n    return h + '</div>';\n}\n\n// Generate timestamp and filename\nconst now = new Date();\nfunction pad(n) { return n.toString().padStart(2, '0'); }\nconst ts = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());\nconst fileName = 'Triple_SVP_Analysis_' + ts + '.html';\n\n// Convert HTML to binary\nconst htmlBuffer = Buffer.from(html, 'utf-8');\nconsole.log(`HTML generated: ${htmlBuffer.length} bytes`);\nconsole.log(`Provider names: ${provider1Name}, ${provider2Name}, ${provider3Name}`);\n\nreturn [{\n    json: {\n        fileName: fileName,\n        aiProvider: 'TripleAI',\n        reportType: 'Comparative',\n        generatedAt: now.toISOString(),\n        hasChart: !!chartImageSrc,\n        models: {\n            provider1: provider1Name,\n            provider2: provider2Name,\n            provider3: provider3Name\n        }\n    },\n    binary: {\n        chart: {\n            data: htmlBuffer,\n            mimeType: 'text/html',\n            fileName: fileName,\n            fileExtension: 'html'\n        }\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        544
+      ],
+      "id": "d0d47b2e-ffcb-43ba-ad59-ca4bccb848c8",
+      "name": "CFR4.3.1"
+    },
+    {
+      "parameters": {
+        "method": "=POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"model\": \"anthropic/claude-sonnet-4.5\",\n    \"messages\": [\n      {\n        \"role\": \"user\",\n        \"content\": [\n          {\n            \"type\": \"text\",\n            \"text\": $json.prompt\n          },\n          {\n            \"type\": \"image_url\",\n            \"image_url\": {\n              \"url\": \"data:image/png;base64,\" + $json.chartBase64\n            }\n          }\n        ]\n      }\n    ],\n    \"temperature\": 0,\n    \"max_tokens\": 8096\n  }\n}}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -448,
+        448
+      ],
+      "id": "5e0dfe32-36bb-4710-bf8c-52835281dabe",
+      "name": "OpenRouter2",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "FUqRTtditu9DyQ7n",
+          "name": "OpenAi account"
+        },
+        "httpBasicAuth": {
+          "id": "aUciWShQwi2U0l7u",
+          "name": "Openrouter"
+        },
+        "httpHeaderAuth": {
+          "id": "uYDJHQRxF2naCcyI",
+          "name": "Gemii Header Auth account"
+        },
+        "httpBearerAuth": {
+          "id": "Z9lqbLNlJrhXAqhL",
+          "name": "Openrouter Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "=POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"model\": \"qwen/qwen3-vl-32b-instruct\",\n    \"messages\": [\n      {\n        \"role\": \"user\",\n        \"content\": [\n          {\n            \"type\": \"text\",\n            \"text\": $json.prompt\n          },\n          {\n            \"type\": \"image_url\",\n            \"image_url\": {\n              \"url\": \"data:image/png;base64,\" + $json.chartBase64\n            }\n          }\n        ]\n      }\n    ],\n    \"temperature\": 0,\n    \"max_tokens\": 8096\n  }\n}}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -448,
+        256
+      ],
+      "id": "6244b932-595f-4f5d-80a2-ddbdd86f9f16",
+      "name": "OpenRouter1",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "FUqRTtditu9DyQ7n",
+          "name": "OpenAi account"
+        },
+        "httpBasicAuth": {
+          "id": "aUciWShQwi2U0l7u",
+          "name": "Openrouter"
+        },
+        "httpHeaderAuth": {
+          "id": "uYDJHQRxF2naCcyI",
+          "name": "Gemii Header Auth account"
+        },
+        "httpBearerAuth": {
+          "id": "Z9lqbLNlJrhXAqhL",
+          "name": "Openrouter Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Decode Chart Image": {
+      "main": [
+        [
+          {
+            "node": "Build Checklist 2.1 Object",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Checklist 2.1 Object": {
+      "main": [
+        [
+          {
+            "node": "Extract Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "CFR4.3.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an object": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "GCS Upload Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extractor": {
+      "main": [
+        [
+          {
+            "node": "Switcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switcher": {
+      "main": [
+        [
+          {
+            "node": "Pushover 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pushover - 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pushover - 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Preserve Chart 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preserve Chart 2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Preserve Chart 3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Preserve Chart 1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRC4.3": {
+      "main": [
+        [
+          {
+            "node": "Enhance Prompt with External Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity": {
+      "main": [
+        [
+          {
+            "node": "Restore Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bias Extractor": {
+      "main": [
+        [
+          {
+            "node": "Format External Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "CRC4.3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Binary": {
+      "main": [
+        [
+          {
+            "node": "Bias Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Metadata": {
+      "main": [
+        [
+          {
+            "node": "Perplexity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enhance Prompt with External Data": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gemini HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "OpenRouter2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format External Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Decode Chart Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CFR4.3.1": {
+      "main": [
+        [
+          {
+            "node": "Create an object",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter2": {
+      "main": [
+        [
+          {
+            "node": "Preserve Chart 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter1": {
+      "main": [
+        [
+          {
+            "node": "Preserve Chart 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "9f9f68d0-7b11-4718-bfa4-36c921d148f5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "844b1075e7b60abac4cc05e2a8c54ab406215e8bc77856c49f625549794060e7"
+  },
+  "id": "npkl5M4zLlBqCNhO",
+  "tags": []
+}
