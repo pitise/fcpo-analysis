@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FCPO Analysis Reports</title>
+    <style>
+        /* Base Styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Light gray background for a clean look */
+            background-color: #f4f7f9; 
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            /* Center content both horizontally and vertically */
+            justify-content: center;
+            align-items: center;
+            /* Ensure it covers the full height of the viewport */
+            min-height: 100vh; 
+        }
+
+        /* Container for the content */
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+            /* Clean white card look */
+            background-color: #ffffff; 
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        /* Header Styling */
+        h1 {
+            /* Deeper blue/teal for a professional yet interesting feel */
+            color: #1a535c; 
+            font-size: 1.8em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        /* Sub-text */
+        p {
+            font-size: 1.05em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        /* Link/Button Styling */
+        .report-link {
+            display: block;
+            /* Spacing between the "buttons" */
+            margin: 15px 0; 
+            padding: 12px 20px;
+            /* Accent color for the links */
+            background-color: #4ecdc4; 
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.1em;
+            /* Smooth transition for hover effects */
+            transition: background-color 0.3s ease, transform 0.2s ease; 
+        }
+
+        .report-link:hover {
+            /* Slightly darker on hover */
+            background-color: #45b3ac; 
+            /* Subtle lift effect */
+            transform: translateY(-2px); 
+            text-decoration: none;
+        }
+
+        /* Icon Styling */
+        .icon {
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FCPO Analysis Reports</h1>
+        <p>
+            Welcome! Select a folder below to access your latest analysis.
+        </p>
+
+        <a href="svp/" class="report-link">
+            <span class="icon">📈</span> SVP Reports
+        </a>
+        <a href="vwap/" class="report-link">
+            <span class="icon">📉</span> VWAP Reports
+        </a>
+    </div>
+</body>
+</html>
